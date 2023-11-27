@@ -1,0 +1,9 @@
+.vs/
+_ReSharper.Caches/
+[Bb]in/
+[Oo]bj/
+BenchmarkDotNet.Artifacts/
+*.user
+.vscode/
+.idea/
+*.orig
