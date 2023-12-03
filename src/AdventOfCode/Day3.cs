@@ -12,45 +12,13 @@ namespace AdventOfCode
     {
         public int Part1(string[] input)
         {
-            var symbols = new Dictionary<Point2D, Symbol>();
-            var parts = new List<Part>();
-
-            // parse
-            for (int y = 0; y < input.Length; y++)
-            {
-                string line = input[y];
-
-                for (int x = 0; x < line.Length; x++)
-                {
-                    char c = line[x];
-
-                    if (c == '.')
-                    {
-                        continue;
-                    }
-
-                    if (!char.IsAsciiDigit(c))
-                    {
-                        Point2D location = new Point2D(x, y);
-                        symbols[location] = new Symbol(c, x, y);
-                        continue;
-                    }
-
-                    ReadOnlySpan<char> number = line.Skip(x).TakeWhile(char.IsAsciiDigit).ToArray();
-                    parts.Add(new Part(int.Parse(number), x, x + number.Length - 1, y));
-                    x += number.Length - 1;
-                }
-            }
+            Schematic schematic = Schematic.Parse(input);
 
             int total = 0;
 
-            foreach (Part part in parts)
+            foreach (Part part in schematic.Parts)
             {
-                var locations = Enumerable.Range(part.Row - 1, 3)
-                                          .SelectMany(y => Enumerable.Range(part.Start - 1, part.End - part.Start + 3)
-                                                                     .Select(x => new Point2D(x, y)));
-
-                if (locations.Any(symbols.ContainsKey))
+                if (part.Edges().Any(schematic.Symbols.ContainsKey))
                 {
                     total += part.Value;
                 }
@@ -61,60 +29,17 @@ namespace AdventOfCode
 
         public int Part2(string[] input)
         {
-            var symbols = new Dictionary<Point2D, Symbol>();
-            var parts = new List<Part>();
-
-            // parse
-            for (int y = 0; y < input.Length; y++)
-            {
-                string line = input[y];
-
-                for (int x = 0; x < line.Length; x++)
-                {
-                    char c = line[x];
-
-                    if (c == '.')
-                    {
-                        continue;
-                    }
-
-                    if (!char.IsAsciiDigit(c))
-                    {
-                        Point2D location = new Point2D(x, y);
-                        symbols[location] = new Symbol(c, x, y);
-                        continue;
-                    }
-
-                    ReadOnlySpan<char> number = line.Skip(x).TakeWhile(char.IsAsciiDigit).ToArray();
-                    parts.Add(new Part(int.Parse(number), x, x + number.Length - 1, y));
-                    x += number.Length - 1;
-                }
-            }
+            Schematic schematic = Schematic.Parse(input);
 
             int total = 0;
 
-            foreach ((Point2D location, Symbol symbol) in symbols)
+            foreach (Symbol symbol in schematic.Symbols.Values.Where(s => s.Value == '*'))
             {
-                if (symbol.Value != '*')
-                {
-                    continue;
-                }
+                // is it adjacent to 2 parts?
+                // TODO: Improve perf by not allocating an array for each search
+                Part[] adjacent = schematic.Parts.Where(symbol.IsAdjacent).ToArray();
 
-                List<Part> adjacent = new List<Part>();
-
-                // is it adjacent to 2 numbers?
-                foreach (Part part in parts)
-                {
-                    if (symbol.Column >= part.Start - 1
-                     && symbol.Column <= part.End + 1
-                     && symbol.Row >= part.Row - 1
-                     && symbol.Row <= part.Row + 1)
-                    {
-                        adjacent.Add(part);
-                    }
-                }
-
-                if (adjacent.Count == 2)
+                if (adjacent.Length == 2)
                 {
                     total += adjacent[0].Value * adjacent[1].Value;
                 }
@@ -123,8 +48,102 @@ namespace AdventOfCode
             return total;
         }
 
-        private record Part(int Value, int Start, int End, int Row);
+        /// <summary>
+        /// The engine schematic, with the parts and symbols that comprise it
+        /// </summary>
+        /// <param name="Parts">Parts</param>
+        /// <param name="Symbols">Symbols, indexed by their location</param>
+        private readonly record struct Schematic(ICollection<Part> Parts, IDictionary<Point2D, Symbol> Symbols)
+        {
+            /// <summary>
+            /// Parse the schematic from the input
+            /// </summary>
+            /// <param name="input">Input</param>
+            /// <returns>Parsed engine schematic</returns>
+            public static Schematic Parse(IEnumerable<string> input)
+            {
+                var symbols = new Dictionary<Point2D, Symbol>();
+                var parts = new List<Part>();
 
-        private record Symbol(char Value, int Column, int Row);
+                foreach ((int y, string line) in input.Enumerate())
+                {
+                    for (int x = 0; x < line.Length; x++)
+                    {
+                        char c = line[x];
+
+                        if (c == '.')
+                        {
+                            continue;
+                        }
+
+                        if (!char.IsAsciiDigit(c))
+                        {
+                            Point2D location = new Point2D(x, y);
+                            symbols[location] = new Symbol(c, x, y);
+                            continue;
+                        }
+
+                        ReadOnlySpan<char> number = line.Skip(x).TakeWhile(char.IsAsciiDigit).ToArray();
+                        parts.Add(new Part(int.Parse(number), x, x + number.Length - 1, y));
+                        x += number.Length - 1;
+                    }
+                }
+
+                return new Schematic(parts, symbols);
+            }
+        }
+
+        /// <summary>
+        /// An engine part
+        /// </summary>
+        /// <param name="Value">The part number</param>
+        /// <param name="Start">The start index of the part number</param>
+        /// <param name="End">The end index of the part number</param>
+        /// <param name="Row">The row which contains the part</param>
+        private record Part(int Value, int Start, int End, int Row)
+        {
+            /// <summary>
+            /// Walk around all the edge locations of the part
+            /// </summary>
+            /// <returns>Edge locations</returns>
+            public IEnumerable<Point2D> Edges()
+            {
+                // left side
+                yield return (this.Start - 1, this.Row - 1);
+                yield return (this.Start - 1, this.Row);
+                yield return (this.Start - 1, this.Row + 1);
+                
+                // right side
+                yield return (this.End + 1, this.Row - 1);
+                yield return (this.End + 1, this.Row);
+                yield return (this.End + 1, this.Row + 1);
+
+                // top and bottom
+                for (int x = this.Start; x <= this.End; x++)
+                {
+                    yield return (x, this.Row - 1);
+                    yield return (x, this.Row + 1);
+                }
+            }
+        }
+
+        /// <summary>
+        /// A symbol on the engine schematic
+        /// </summary>
+        /// <param name="Value">Symbol value</param>
+        /// <param name="Column">Schematic column</param>
+        /// <param name="Row">Schematic row</param>
+        private record Symbol(char Value, int Column, int Row)
+        {
+            /// <summary>
+            /// Check if the symbol is adjacent to the given part
+            /// </summary>
+            /// <param name="part">Engine part</param>
+            /// <returns>If the part is adjacent to this symbol</returns>
+            public bool IsAdjacent(Part part) => this.Column >= part.Start - 1
+                                              && this.Column <= part.End + 1
+                                              && this.Row >= part.Row - 1
+                                              && this.Row <= part.Row + 1;
+        }
     }
 }
