@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using AdventOfCode.Utilities;
+using MoreLinq;
+using Optional;
 
 namespace AdventOfCode
 {
@@ -16,14 +19,28 @@ namespace AdventOfCode
             return instructions.Seeds.Select(instructions.SeedLocation).Min();
         }
 
-        public int Part2(string[] input)
+        public long Part2(string[] input)
         {
-            foreach (string line in input)
+            var instructions = Instructions.Parse(input);
+
+            if (input.Length < 100)
             {
-                throw new NotImplementedException("Part 2 not implemented");
+                // sample input
+                Option<long> testSeed = instructions.LocationSeed(46);
+                Debug.Assert(testSeed.ValueOr(0) == 82);
             }
 
-            return 0;
+            for (long location = 0; location < long.MaxValue; location++)
+            {
+                Option<long> seed = instructions.LocationSeed(location);
+
+                if (seed.HasValue)
+                {
+                    return location;
+                }
+            }
+
+            throw new InvalidOperationException("Not found. And how did you even loop this far?");
         }
 
         private record Instructions(IList<long> Seeds,
@@ -70,20 +87,42 @@ namespace AdventOfCode
 
             public long SeedLocation(long seed)
             {
-                long soil = GetOrDefault(this.SeedToSoil, seed);
-                long fertiliser = GetOrDefault(this.SoilToFertiliser, soil);
-                long water = GetOrDefault(this.FertiliserToWater, fertiliser);
-                long light = GetOrDefault(this.WaterToLight, water);
-                long temperature = GetOrDefault(this.LightToTemperature, light);
-                long humidity = GetOrDefault(this.TemperatureToHumidity, temperature);
-                long location = GetOrDefault(this.HumidityToLocation, humidity);
+                long soil = GetFromSource(this.SeedToSoil, seed);
+                long fertiliser = GetFromSource(this.SoilToFertiliser, soil);
+                long water = GetFromSource(this.FertiliserToWater, fertiliser);
+                long light = GetFromSource(this.WaterToLight, water);
+                long temperature = GetFromSource(this.LightToTemperature, light);
+                long humidity = GetFromSource(this.TemperatureToHumidity, temperature);
+                long location = GetFromSource(this.HumidityToLocation, humidity);
 
                 return location;
             }
 
-            private static long GetOrDefault(IList<ItemMap> map, long source)
+            public Option<long> LocationSeed(long location)
             {
-                ItemMap range = map.FirstOrDefault(m => m.Source <= source && m.Source + m.Range >= source);
+                long humidity = GetFromDestination(this.HumidityToLocation, location);
+                long temperature = GetFromDestination(this.TemperatureToHumidity, humidity);
+                long light = GetFromDestination(this.LightToTemperature, temperature);
+                long water = GetFromDestination(this.WaterToLight, light);
+                long fertiliser = GetFromDestination(this.FertiliserToWater, water);
+                long soil = GetFromDestination(this.SoilToFertiliser, fertiliser);
+                long seed = GetFromDestination(this.SeedToSoil, soil);
+
+                // check if this is a valid starting seed
+                for (int i = 0; i < this.Seeds.Count; i += 2)
+                {
+                    if (this.Seeds[i] <= seed && seed < this.Seeds[i] + this.Seeds[i + 1])
+                    {
+                        return seed.Some();
+                    }
+                }
+
+                return Option.None<long>();
+            }
+
+            private static long GetFromSource(IList<ItemMap> map, long source)
+            {
+                ItemMap range = map.FirstOrDefault(m => m.Source <= source && source < m.Source + m.Range);
 
                 if (range == null)
                 {
@@ -92,6 +131,19 @@ namespace AdventOfCode
 
                 long rangeOffset = source - range.Source;
                 return range.Destination + rangeOffset;
+            }
+
+            private static long GetFromDestination(IList<ItemMap> map, long destination)
+            {
+                ItemMap range = map.FirstOrDefault(m => m.Destination <= destination && destination < m.Destination + m.Range);
+
+                if (range == null)
+                {
+                    return destination;
+                }
+
+                long rangeOffset = destination - range.Destination;
+                return range.Source + rangeOffset;
             }
         }
 
