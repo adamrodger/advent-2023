@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using System;
 using System.Linq;
 using AdventOfCode.Utilities;
 
@@ -16,7 +16,7 @@ namespace AdventOfCode
 
             return times.Zip(distances)
                         .Select(r => new Race(r.First, r.Second))
-                        .Aggregate(1, (acc, race) => acc * Enumerable.Range(1, race.TimeLimit - 1).Count(race.BeatsTarget));
+                        .Aggregate(1, (acc, race) => acc * race.PossibleSolutions());
         }
 
         public int Part2(string[] input)
@@ -25,13 +25,7 @@ namespace AdventOfCode
             long distance = long.Parse(input[1][11..].Replace(" ", string.Empty));
 
             Race race = new Race(times, distance);
-
-            int lower = Enumerable.Range(1, race.TimeLimit).First(race.BeatsTarget);
-
-            // the curve is symmetrical so it's the same offset from the end as from the start
-            int upper = race.TimeLimit - lower;
-
-            return upper - lower + 1;
+            return race.PossibleSolutions();
         }
 
         /// <summary>
@@ -42,17 +36,17 @@ namespace AdventOfCode
         private record Race(int TimeLimit, long TargetDistance)
         {
             /// <summary>
-            /// If we wait for the given initial period, would we beat the distance in the time limit?
+            /// How many different wait periods could be used to beat the target distance within the time limit?
             /// </summary>
-            /// <param name="initialWait">Initial wait time</param>
-            /// <returns>Whether this wait time beats the target distance</returns>
-            public bool BeatsTarget(int initialWait)
+            /// <returns>Possible solutions</returns>
+            public int PossibleSolutions()
             {
-                Debug.Assert(initialWait > 0 && initialWait < this.TimeLimit);
+                double delta = Math.Sqrt(((long)this.TimeLimit * this.TimeLimit) - (4 * this.TargetDistance));
 
-                long distance = (long)initialWait * (this.TimeLimit - initialWait);
+                double lower = (this.TimeLimit - delta) / 2;
+                double upper = (this.TimeLimit + delta) / 2;
 
-                return distance > this.TargetDistance; // assumption: equalling the target isn't good enough
+                return (int)(Math.Ceiling(upper) - Math.Floor(lower) - 1);
             }
         }
     }
