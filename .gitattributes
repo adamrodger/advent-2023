@@ -1,0 +1,2 @@
+src/AdventOfCode/inputs/*.txt filter=git-crypt diff=git-crypt
+
