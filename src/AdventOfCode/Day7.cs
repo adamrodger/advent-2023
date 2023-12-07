@@ -10,19 +10,19 @@ namespace AdventOfCode
     /// </summary>
     public class Day7
     {
-        public long Part1(string[] input) => input.Select(Hand.Parse)
-                                                  .OrderBy(h => h, new Part1Comparer())
-                                                  .Select((hand, rank) => hand.Bid * ((long)rank + 1))
-                                                  .Sum();
+        public int Part1(string[] input) => input.Select(Hand.Parse)
+                                                 .OrderBy(h => h, new Part1Comparer())
+                                                 .Select((hand, rank) => hand.Bid * (rank + 1))
+                                                 .Sum();
 
-        public long Part2(string[] input) => input.Select(Hand.Parse)
-                                                  .OrderBy(h => h, new Part2Comparer())
-                                                  .Select((hand, rank) => hand.Bid * ((long)rank + 1))
-                                                  .Sum();
-        // 252525782 - too high
-        // 252285416 - too high
-        // 251655412 - too high
+        public int Part2(string[] input) => input.Select(Hand.Parse)
+                                                 .OrderBy(h => h, new Part2Comparer())
+                                                 .Select((hand, rank) => hand.Bid * (rank + 1))
+                                                 .Sum();
 
+        /// <summary>
+        /// A card in the hand
+        /// </summary>
         private enum Card
         {
             Ace = 14,
@@ -40,12 +40,23 @@ namespace AdventOfCode
             Two = 2
         }
 
-        private record Hand(Card[] Cards, long Bid)
+        /// <summary>
+        /// A hand of cards in Camel Cards
+        /// </summary>
+        /// <param name="Cards">Cards</param>
+        /// <param name="Bid">Hand bid</param>
+        private record Hand(Card[] Cards, int Bid)
         {
+            /// <summary>
+            /// Parse the line to a hand
+            /// </summary>
+            /// <param name="line">Input line</param>
+            /// <returns>Hand</returns>
             public static Hand Parse(string line)
             {
-                var cards = line[..5].Select(c => c switch
+                Card[] cards = line[..5].Select(c => c switch
                 {
+                    // wouldn't it be nice if we could add static Parse methods to enums?
                     'A' => Card.Ace,
                     'K' => Card.King,
                     'Q' => Card.Queen,
@@ -62,14 +73,23 @@ namespace AdventOfCode
                     _ => throw new ArgumentOutOfRangeException(nameof(c), c, null)
                 }).ToArray();
 
-                long bid = long.Parse(line[6..]);
+                int bid = int.Parse(line[6..]);
 
                 return new Hand(cards, bid);
             }
         }
 
+        /// <summary>
+        /// Compare two hands using the rules for part 1
+        /// </summary>
         private class Part1Comparer : IComparer<Hand>
         {
+            /// <summary>
+            /// Compare the hands
+            /// </summary>
+            /// <param name="left">Left hand</param>
+            /// <param name="right">Right hand</param>
+            /// <returns>Comparison result</returns>
             public int Compare(Hand left, Hand right)
             {
                 var leftGroups = new Dictionary<Card, int>();
@@ -125,8 +145,17 @@ namespace AdventOfCode
             }
         }
 
+        /// <summary>
+        /// Compare two hands using the rules for part 2, where Jacks count as Jokers
+        /// </summary>
         private class Part2Comparer : IComparer<Hand>
         {
+            /// <summary>
+            /// Compare the hands
+            /// </summary>
+            /// <param name="left">Left hand</param>
+            /// <param name="right">Right hand</param>
+            /// <returns>Comparison result</returns>
             public int Compare(Hand left, Hand right)
             {
                 var leftGroups = new Dictionary<Card, int>();
@@ -142,6 +171,10 @@ namespace AdventOfCode
                     rightGroups[card] = rightGroups.GetOrCreate(card) + 1;
                 }
 
+                // move the jokers to create the strongest possible hand
+                MoveJokers(leftGroups);
+                MoveJokers(rightGroups);
+
                 /*
                  * Compare the powers of each hand
                  *
@@ -154,49 +187,7 @@ namespace AdventOfCode
                  * 2, 1, 1, 1
                  * 1, 1, 1, 1, 1
                  */
-
-                int leftJokers = leftGroups.GetValueOrDefault(Card.Jack);
-                int rightJokers = rightGroups.GetValueOrDefault(Card.Jack);
-
-                // jokers join the biggest group
-                if (left.Cards.Any(c => c == Card.Jack))
-                {
-                    if (left.Cards.All(c => c == Card.Jack))
-                    {
-                        // unless they're all jokers, then they all just pretend to be 5 of a kind Aces
-                        leftGroups[Card.Ace] = 5;
-                    }
-                    else
-                    {
-                        Card leftMaxGroup = leftGroups.Where(g => g.Key != Card.Jack).MaxBy(g => g.Value).Key;
-                        leftGroups[leftMaxGroup] += leftJokers;
-                    }
-                }
-
-                // jokers join the biggest group
-                if (right.Cards.Any(c => c == Card.Jack))
-                {
-                    if (right.Cards.All(c => c == Card.Jack))
-                    {
-                        // unless they're all jokers, then they all just pretend to be 5 of a kind Aces
-                        rightGroups[Card.Ace] = 5;
-                    }
-                    else
-                    {
-                        Card rightMaxGroup = rightGroups.Where(g => g.Key != Card.Jack).MaxBy(g => g.Value).Key;
-                        rightGroups[rightMaxGroup] += rightJokers;
-                    }
-                }
-
-                IEnumerable<int> leftNonJokerGroups = leftGroups.Where(g => g.Key != Card.Jack)
-                                                                .Select(g => g.Value)
-                                                                .OrderByDescending(x => x);
-
-                IEnumerable<int> rightNonJokerGroups = rightGroups.Where(g => g.Key != Card.Jack)
-                                                                  .Select(g => g.Value)
-                                                                  .OrderByDescending(x => x);
-
-                var powers = leftNonJokerGroups.Zip(rightNonJokerGroups);
+                var powers = leftGroups.Values.OrderByDescending(x => x).Zip(rightGroups.Values.OrderByDescending(x => x));
 
                 foreach ((int leftGroup, int rightGroup) in powers)
                 {
@@ -213,11 +204,13 @@ namespace AdventOfCode
                 {
                     if (leftCard == Card.Jack && rightCard != Card.Jack)
                     {
+                        // jokers always lose against non-jokers
                         return -1;
                     }
 
                     if (leftCard != Card.Jack && rightCard == Card.Jack)
                     {
+                        // jokers always lose against non-jokers
                         return 1;
                     }
 
@@ -231,6 +224,35 @@ namespace AdventOfCode
 
                 // hands are identical
                 return 0;
+            }
+
+            /// <summary>
+            /// Move any jokers in the groups to create the strongest hand possible
+            /// </summary>
+            /// <param name="groups">Existing card groups, which will be modified if any jokers need to move</param>
+            private static void MoveJokers(IDictionary<Card, int> groups)
+            {
+                int jokers = groups.GetOrDefault(Card.Jack);
+
+                if (jokers == 0)
+                {
+                    // nothing to move
+                    return;
+                }
+
+                // the jokers are going to move somewhere else
+                groups.Remove(Card.Jack);
+
+                if (jokers == 5)
+                {
+                    // no group to join, so they all pretend to be Aces to create 5 of a kind
+                    groups[Card.Ace] = jokers;
+                    return;
+                }
+
+                // they join the current strongest card to make it even stronger
+                Card strongest = groups.MaxBy(g => g.Value).Key;
+                groups[strongest] += jokers;
             }
         }
     }
