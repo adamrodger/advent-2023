@@ -19,7 +19,9 @@ namespace AdventOfCode
                                                   .OrderBy(h => h, new Part2Comparer())
                                                   .Select((hand, rank) => hand.Bid * ((long)rank + 1))
                                                   .Sum();
+        // 252525782 - too high
         // 252285416 - too high
+        // 251655412 - too high
 
         private enum Card
         {
@@ -156,11 +158,41 @@ namespace AdventOfCode
                 int leftJokers = leftGroups.GetValueOrDefault(Card.Jack);
                 int rightJokers = rightGroups.GetValueOrDefault(Card.Jack);
 
-                var powers = leftGroups.Values.OrderByDescending(x => x).Zip(rightGroups.Values.OrderByDescending(x => x));
+                // jokers join the biggest group
+                if (left.Cards.Any(c => c != Card.Jack))
+                {
+                    Card leftMaxGroup = leftGroups.Where(g => g.Key != Card.Jack).MaxBy(g => g.Value).Key;
+                    leftGroups[leftMaxGroup] += leftJokers;
+                }
+                // unless they're all jokers, then they all just pretend to be 5 of a kind Aces
+                else if (left.Cards.All(c => c == Card.Jack))
+                {
+                    leftGroups[Card.Ace] = 5;
+                }
+
+                if (right.Cards.Any(c => c != Card.Jack))
+                {
+                    Card rightMaxGroup = rightGroups.Where(g => g.Key != Card.Jack).MaxBy(g => g.Value).Key;
+                    rightGroups[rightMaxGroup] += rightJokers;
+                }
+                else if (left.Cards.All(c => c == Card.Jack))
+                {
+                    rightGroups[Card.Ace] = 5;
+                }
+
+                IEnumerable<int> leftNonJokerGroups = leftGroups.Where(g => g.Key != Card.Jack)
+                                                                .Select(g => g.Value)
+                                                                .OrderByDescending(x => x);
+
+                IEnumerable<int> rightNonJokerGroups = rightGroups.Where(g => g.Key != Card.Jack)
+                                                                  .Select(g => g.Value)
+                                                                  .OrderByDescending(x => x);
+
+                var powers = leftNonJokerGroups.Zip(rightNonJokerGroups);
 
                 foreach ((int leftGroup, int rightGroup) in powers)
                 {
-                    int comparison = (leftGroup + leftJokers).CompareTo(rightGroup + rightJokers);
+                    int comparison = leftGroup.CompareTo(rightGroup);
 
                     if (comparison != 0)
                     {
