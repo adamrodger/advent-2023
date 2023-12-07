@@ -159,25 +159,33 @@ namespace AdventOfCode
                 int rightJokers = rightGroups.GetValueOrDefault(Card.Jack);
 
                 // jokers join the biggest group
-                if (left.Cards.Any(c => c != Card.Jack))
+                if (left.Cards.Any(c => c == Card.Jack))
                 {
-                    Card leftMaxGroup = leftGroups.Where(g => g.Key != Card.Jack).MaxBy(g => g.Value).Key;
-                    leftGroups[leftMaxGroup] += leftJokers;
-                }
-                // unless they're all jokers, then they all just pretend to be 5 of a kind Aces
-                else if (left.Cards.All(c => c == Card.Jack))
-                {
-                    leftGroups[Card.Ace] = 5;
+                    if (left.Cards.All(c => c == Card.Jack))
+                    {
+                        // unless they're all jokers, then they all just pretend to be 5 of a kind Aces
+                        leftGroups[Card.Ace] = 5;
+                    }
+                    else
+                    {
+                        Card leftMaxGroup = leftGroups.Where(g => g.Key != Card.Jack).MaxBy(g => g.Value).Key;
+                        leftGroups[leftMaxGroup] += leftJokers;
+                    }
                 }
 
-                if (right.Cards.Any(c => c != Card.Jack))
+                // jokers join the biggest group
+                if (right.Cards.Any(c => c == Card.Jack))
                 {
-                    Card rightMaxGroup = rightGroups.Where(g => g.Key != Card.Jack).MaxBy(g => g.Value).Key;
-                    rightGroups[rightMaxGroup] += rightJokers;
-                }
-                else if (left.Cards.All(c => c == Card.Jack))
-                {
-                    rightGroups[Card.Ace] = 5;
+                    if (right.Cards.All(c => c == Card.Jack))
+                    {
+                        // unless they're all jokers, then they all just pretend to be 5 of a kind Aces
+                        rightGroups[Card.Ace] = 5;
+                    }
+                    else
+                    {
+                        Card rightMaxGroup = rightGroups.Where(g => g.Key != Card.Jack).MaxBy(g => g.Value).Key;
+                        rightGroups[rightMaxGroup] += rightJokers;
+                    }
                 }
 
                 IEnumerable<int> leftNonJokerGroups = leftGroups.Where(g => g.Key != Card.Jack)
