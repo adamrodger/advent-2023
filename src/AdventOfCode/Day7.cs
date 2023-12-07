@@ -11,19 +11,15 @@ namespace AdventOfCode
     public class Day7
     {
         public long Part1(string[] input) => input.Select(Hand.Parse)
-                                                  .OrderBy(h => h)
+                                                  .OrderBy(h => h, new Part1Comparer())
                                                   .Select((hand, rank) => hand.Bid * ((long)rank + 1))
                                                   .Sum();
 
-        public int Part2(string[] input)
-        {
-            foreach (string line in input)
-            {
-                throw new NotImplementedException("Part 2 not implemented");
-            }
-
-            return 0;
-        }
+        public long Part2(string[] input) => input.Select(Hand.Parse)
+                                                  .OrderBy(h => h, new Part2Comparer())
+                                                  .Select((hand, rank) => hand.Bid * ((long)rank + 1))
+                                                  .Sum();
+        // 252285416 - too high
 
         private enum Card
         {
@@ -42,7 +38,7 @@ namespace AdventOfCode
             Two = 2
         }
 
-        private record Hand(Card[] Cards, long Bid) : IComparable<Hand>
+        private record Hand(Card[] Cards, long Bid)
         {
             public static Hand Parse(string line)
             {
@@ -68,24 +64,23 @@ namespace AdventOfCode
 
                 return new Hand(cards, bid);
             }
+        }
 
-            /// <summary>Compares the current instance with another object of the same type and returns an integer that indicates whether the current instance precedes, follows, or occurs in the same position in the sort order as the other object.</summary>
-            /// <param name="other">An object to compare with this instance.</param>
-            /// <returns>A value that indicates the relative order of the objects being compared. The return value has these meanings:
-            /// <list type="table"><listheader><term> Value</term><description> Meaning</description></listheader><item><term> Less than zero</term><description> This instance precedes <paramref name="other" /> in the sort order.</description></item><item><term> Zero</term><description> This instance occurs in the same position in the sort order as <paramref name="other" />.</description></item><item><term> Greater than zero</term><description> This instance follows <paramref name="other" /> in the sort order.</description></item></list></returns>
-            public int CompareTo(Hand other)
+        private class Part1Comparer : IComparer<Hand>
+        {
+            public int Compare(Hand left, Hand right)
             {
-                var thisGroups = new Dictionary<Card, int>();
-                var otherGroups = new Dictionary<Card, int>();
+                var leftGroups = new Dictionary<Card, int>();
+                var rightGroups = new Dictionary<Card, int>();
 
-                foreach (Card card in this.Cards)
+                foreach (Card card in left.Cards)
                 {
-                    thisGroups[card] = thisGroups.GetOrCreate(card) + 1;
+                    leftGroups[card] = leftGroups.GetOrCreate(card) + 1;
                 }
 
-                foreach (Card card in other.Cards)
+                foreach (Card card in right.Cards)
                 {
-                    otherGroups[card] = otherGroups.GetOrCreate(card) + 1;
+                    rightGroups[card] = rightGroups.GetOrCreate(card) + 1;
                 }
 
                 /*
@@ -100,11 +95,11 @@ namespace AdventOfCode
                  * 2, 1, 1, 1
                  * 1, 1, 1, 1, 1
                  */
-                var powers = thisGroups.Values.OrderByDescending(x => x).Zip(otherGroups.Values.OrderByDescending(x => x));
+                var powers = leftGroups.Values.OrderByDescending(x => x).Zip(rightGroups.Values.OrderByDescending(x => x));
 
-                foreach ((int thisGroup, int otherGroup) in powers)
+                foreach ((int leftGroup, int rightGroup) in powers)
                 {
-                    int comparison = thisGroup.CompareTo(otherGroup);
+                    int comparison = leftGroup.CompareTo(rightGroup);
 
                     if (comparison != 0)
                     {
@@ -113,9 +108,80 @@ namespace AdventOfCode
                 }
 
                 // hands have equal power, compare card values left to right
-                foreach ((Card thisCard, Card otherCard) in this.Cards.Zip(other.Cards))
+                foreach ((Card leftCard, Card rightCard) in left.Cards.Zip(right.Cards))
                 {
-                    int comparison = thisCard.CompareTo(otherCard);
+                    int comparison = leftCard.CompareTo(rightCard);
+
+                    if (comparison != 0)
+                    {
+                        return comparison;
+                    }
+                }
+
+                // hands are identical
+                return 0;
+            }
+        }
+
+        private class Part2Comparer : IComparer<Hand>
+        {
+            public int Compare(Hand left, Hand right)
+            {
+                var leftGroups = new Dictionary<Card, int>();
+                var rightGroups = new Dictionary<Card, int>();
+
+                foreach (Card card in left.Cards)
+                {
+                    leftGroups[card] = leftGroups.GetOrCreate(card) + 1;
+                }
+
+                foreach (Card card in right.Cards)
+                {
+                    rightGroups[card] = rightGroups.GetOrCreate(card) + 1;
+                }
+
+                /*
+                 * Compare the powers of each hand
+                 *
+                 * Possible:
+                 * 5
+                 * 4, 1
+                 * 3, 2
+                 * 3, 1, 1
+                 * 2, 2, 1
+                 * 2, 1, 1, 1
+                 * 1, 1, 1, 1, 1
+                 */
+
+                int leftJokers = leftGroups.GetValueOrDefault(Card.Jack);
+                int rightJokers = rightGroups.GetValueOrDefault(Card.Jack);
+
+                var powers = leftGroups.Values.OrderByDescending(x => x).Zip(rightGroups.Values.OrderByDescending(x => x));
+
+                foreach ((int leftGroup, int rightGroup) in powers)
+                {
+                    int comparison = (leftGroup + leftJokers).CompareTo(rightGroup + rightJokers);
+
+                    if (comparison != 0)
+                    {
+                        return comparison;
+                    }
+                }
+
+                // hands have equal power, compare card values left to right
+                foreach ((Card leftCard, Card rightCard) in left.Cards.Zip(right.Cards))
+                {
+                    if (leftCard == Card.Jack && rightCard != Card.Jack)
+                    {
+                        return -1;
+                    }
+
+                    if (leftCard != Card.Jack && rightCard == Card.Jack)
+                    {
+                        return 1;
+                    }
+
+                    int comparison = leftCard.CompareTo(rightCard);
 
                     if (comparison != 0)
                     {
