@@ -20,6 +20,12 @@ namespace AdventOfCode.Utilities
                   .ToArray();
         }
 
+        public static TValue GetOrDefault<TKey, TValue>(this IDictionary<TKey, TValue> @this, TKey key)
+        {
+            @this.TryGetValue(key, out TValue value);
+            return value;
+        }
+
         public static TValue GetOrCreate<TKey, TValue>(this IDictionary<TKey, TValue> @this, TKey key) where TValue : new()
         {
             if (!@this.TryGetValue(key, out TValue value))
