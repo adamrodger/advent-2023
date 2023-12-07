@@ -11,12 +11,13 @@ namespace AdventOfCode
     public class Day7
     {
         public int Part1(string[] input) => input.Select(Hand.Parse)
-                                                 .OrderBy(h => h, new Part1Comparer())
+                                                 .OrderBy(h => h)
                                                  .Select((hand, rank) => hand.Bid * (rank + 1))
                                                  .Sum();
 
-        public int Part2(string[] input) => input.Select(Hand.Parse)
-                                                 .OrderBy(h => h, new Part2Comparer())
+        public int Part2(string[] input) => input.Select(line => line.Replace('J', '*')) // replace Jack with Joker
+                                                 .Select(Hand.Parse)
+                                                 .OrderBy(h => h)
                                                  .Select((hand, rank) => hand.Bid * (rank + 1))
                                                  .Sum();
 
@@ -37,15 +38,31 @@ namespace AdventOfCode
             Five = 5,
             Four = 4,
             Three = 3,
-            Two = 2
+            Two = 2,
+            Joker = 1,
+        }
+
+        /// <summary>
+        /// Rank of each hand
+        /// </summary>
+        private enum HandRank
+        {
+            HighCard = 1,
+            Pair = 2,
+            TwoPair = 3,
+            ThreeOfAKind = 4,
+            FullHouse = 5,
+            FourOfAKind = 6,
+            FiveOfAKind = 7
         }
 
         /// <summary>
         /// A hand of cards in Camel Cards
         /// </summary>
         /// <param name="Cards">Cards</param>
+        /// <param name="Rank">Hand rank</param>
         /// <param name="Bid">Hand bid</param>
-        private record Hand(Card[] Cards, int Bid)
+        private record Hand(Card[] Cards, HandRank Rank, int Bid) : IComparable<Hand>
         {
             /// <summary>
             /// Parse the line to a hand
@@ -70,69 +87,35 @@ namespace AdventOfCode
                     '4' => Card.Four,
                     '3' => Card.Three,
                     '2' => Card.Two,
+                    '*' => Card.Joker,
                     _ => throw new ArgumentOutOfRangeException(nameof(c), c, null)
                 }).ToArray();
 
+                HandRank rank = CalculateRank(cards);
+
                 int bid = int.Parse(line[6..]);
 
-                return new Hand(cards, bid);
+                return new Hand(cards, rank, bid);
             }
-        }
 
-        /// <summary>
-        /// Compare two hands using the rules for part 1
-        /// </summary>
-        private class Part1Comparer : IComparer<Hand>
-        {
             /// <summary>
-            /// Compare the hands
+            /// Compare this hand to another hand
             /// </summary>
-            /// <param name="left">Left hand</param>
-            /// <param name="right">Right hand</param>
+            /// <param name="other">Other hand</param>
             /// <returns>Comparison result</returns>
-            public int Compare(Hand left, Hand right)
+            public int CompareTo(Hand other)
             {
-                var leftGroups = new Dictionary<Card, int>();
-                var rightGroups = new Dictionary<Card, int>();
+                int comparison = this.Rank.CompareTo(other.Rank);
 
-                foreach (Card card in left.Cards)
+                if (comparison != 0)
                 {
-                    leftGroups[card] = leftGroups.GetOrCreate(card) + 1;
+                    return comparison;
                 }
 
-                foreach (Card card in right.Cards)
+                // hands have equal rank, compare card values one by one
+                foreach ((Card leftCard, Card rightCard) in this.Cards.Zip(other.Cards))
                 {
-                    rightGroups[card] = rightGroups.GetOrCreate(card) + 1;
-                }
-
-                /*
-                 * Compare the powers of each hand
-                 *
-                 * Possible:
-                 * 5
-                 * 4, 1
-                 * 3, 2
-                 * 3, 1, 1
-                 * 2, 2, 1
-                 * 2, 1, 1, 1
-                 * 1, 1, 1, 1, 1
-                 */
-                var powers = leftGroups.Values.OrderByDescending(x => x).Zip(rightGroups.Values.OrderByDescending(x => x));
-
-                foreach ((int leftGroup, int rightGroup) in powers)
-                {
-                    int comparison = leftGroup.CompareTo(rightGroup);
-
-                    if (comparison != 0)
-                    {
-                        return comparison;
-                    }
-                }
-
-                // hands have equal power, compare card values left to right
-                foreach ((Card leftCard, Card rightCard) in left.Cards.Zip(right.Cards))
-                {
-                    int comparison = leftCard.CompareTo(rightCard);
+                    comparison = leftCard.CompareTo(rightCard);
 
                     if (comparison != 0)
                     {
@@ -143,87 +126,40 @@ namespace AdventOfCode
                 // hands are identical
                 return 0;
             }
-        }
 
-        /// <summary>
-        /// Compare two hands using the rules for part 2, where Jacks count as Jokers
-        /// </summary>
-        private class Part2Comparer : IComparer<Hand>
-        {
             /// <summary>
-            /// Compare the hands
+            /// Calculate the best rank for this hand of cards
             /// </summary>
-            /// <param name="left">Left hand</param>
-            /// <param name="right">Right hand</param>
-            /// <returns>Comparison result</returns>
-            public int Compare(Hand left, Hand right)
+            /// <param name="cards">Cards</param>
+            /// <returns>Hand rank</returns>
+            private static HandRank CalculateRank(IEnumerable<Card> cards)
             {
-                var leftGroups = new Dictionary<Card, int>();
-                var rightGroups = new Dictionary<Card, int>();
+                // group cards by type
+                var groups = new Dictionary<Card, int>(5);
 
-                foreach (Card card in left.Cards)
+                foreach (Card card in cards)
                 {
-                    leftGroups[card] = leftGroups.GetOrCreate(card) + 1;
+                    int value = groups.GetOrDefault(card);
+                    groups[card] = value + 1;
                 }
 
-                foreach (Card card in right.Cards)
+                // move the jokers (if any) to create the strongest possible hand
+                MoveJokers(groups);
+
+                // use the group counts to determine rank
+                int[] counts = groups.Values.OrderDescending().ToArray();
+
+                return counts switch
                 {
-                    rightGroups[card] = rightGroups.GetOrCreate(card) + 1;
-                }
-
-                // move the jokers to create the strongest possible hand
-                MoveJokers(leftGroups);
-                MoveJokers(rightGroups);
-
-                /*
-                 * Compare the powers of each hand
-                 *
-                 * Possible:
-                 * 5
-                 * 4, 1
-                 * 3, 2
-                 * 3, 1, 1
-                 * 2, 2, 1
-                 * 2, 1, 1, 1
-                 * 1, 1, 1, 1, 1
-                 */
-                var powers = leftGroups.Values.OrderByDescending(x => x).Zip(rightGroups.Values.OrderByDescending(x => x));
-
-                foreach ((int leftGroup, int rightGroup) in powers)
-                {
-                    int comparison = leftGroup.CompareTo(rightGroup);
-
-                    if (comparison != 0)
-                    {
-                        return comparison;
-                    }
-                }
-
-                // hands have equal power, compare card values left to right
-                foreach ((Card leftCard, Card rightCard) in left.Cards.Zip(right.Cards))
-                {
-                    if (leftCard == Card.Jack && rightCard != Card.Jack)
-                    {
-                        // jokers always lose against non-jokers
-                        return -1;
-                    }
-
-                    if (leftCard != Card.Jack && rightCard == Card.Jack)
-                    {
-                        // jokers always lose against non-jokers
-                        return 1;
-                    }
-
-                    int comparison = leftCard.CompareTo(rightCard);
-
-                    if (comparison != 0)
-                    {
-                        return comparison;
-                    }
-                }
-
-                // hands are identical
-                return 0;
+                    [5] => HandRank.FiveOfAKind,
+                    [4, 1] => HandRank.FourOfAKind,
+                    [3, 2] => HandRank.FullHouse,
+                    [3, 1, 1] => HandRank.ThreeOfAKind,
+                    [2, 2, 1] => HandRank.TwoPair,
+                    [2, 1, 1, 1] => HandRank.Pair,
+                    [1, 1, 1, 1, 1] => HandRank.HighCard,
+                    _ => throw new ArgumentOutOfRangeException(nameof(counts), counts, null)
+                };
             }
 
             /// <summary>
@@ -232,7 +168,7 @@ namespace AdventOfCode
             /// <param name="groups">Existing card groups, which will be modified if any jokers need to move</param>
             private static void MoveJokers(IDictionary<Card, int> groups)
             {
-                int jokers = groups.GetOrDefault(Card.Jack);
+                int jokers = groups.GetOrDefault(Card.Joker);
 
                 if (jokers == 0)
                 {
@@ -241,7 +177,7 @@ namespace AdventOfCode
                 }
 
                 // the jokers are going to move somewhere else
-                groups.Remove(Card.Jack);
+                groups.Remove(Card.Joker);
 
                 if (jokers == 5)
                 {
