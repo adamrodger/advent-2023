@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AdventOfCode.Utilities;
 
 namespace AdventOfCode
 {
@@ -11,89 +12,105 @@ namespace AdventOfCode
     {
         public int Part1(string[] input)
         {
-            string instructions = input[0];
-
-            Dictionary<string, (string Left, string Right)> steps = new(input.Length - 2);
-
-            foreach (string line in input.Skip(2))
-            {
-                steps[line[..3]] = (line[7..10], line[12..15]);
-            }
-
-            return StepLength("AAA", x => x == "ZZZ", instructions, steps);
+            Map map = Map.Parse(input);
+            return map.TotalSteps("AAA", "ZZZ");
         }
 
         public long Part2(string[] input)
         {
-            // this is going to be finding the loop length of each one and then LCM of those
+            Map map = Map.Parse(input);
 
-            string instructions = input[0];
-
-            Dictionary<string, (string Left, string Right)> steps = new(input.Length - 2);
-
-            foreach (string line in input.Skip(2))
-            {
-                steps[line[..3]] = (line[7..10], line[12..15]);
-            }
-
-            string[] startNodes = steps.Keys.Where(s => s.EndsWith('A')).ToArray();
-            long[] counts = new long[startNodes.Length];
-
-            foreach ((string start, int i) in startNodes.Select((s, i) => (s, i)))
-            {
-                counts[i] = StepLength(start, x => x.EndsWith('Z'), instructions, steps);
-            }
-
-            return counts.Aggregate(findLCM);
+            // find the loop length of each start node and then LCM all of them to find when they'd line up
+            return map.Nodes
+                      .Keys
+                      .Where(n => n.EndsWith('A'))
+                      .Select(n => (long)map.TotalSteps(n, x => x.EndsWith('Z')))
+                      .Aggregate(Maths.LowestCommonMultiple);
         }
 
-        private static int StepLength(string start,
-                                      Predicate<string> target,
-                                      string instructions,
-                                      IDictionary<string, (string Left, string Right)> steps)
+        /// <summary>
+        /// The map to follow
+        /// </summary>
+        /// <param name="Directions">Map directions</param>
+        /// <param name="Nodes">Map nodes</param>
+        private record Map(IList<TurnDirection> Directions, IDictionary<string, Node> Nodes)
         {
-            string current = start;
-            int i = 0;
-            int total = 0;
-
-            while (!target(current))
+            /// <summary>
+            /// Parse the map
+            /// </summary>
+            /// <param name="input">Input lines</param>
+            /// <returns>Map</returns>
+            public static Map Parse(IList<string> input)
             {
-                char instruction = instructions[i];
+                TurnDirection[] directions = input[0].Select(c => c == 'L' ? TurnDirection.Left : TurnDirection.Right).ToArray();
 
-                current = instruction == 'L' ? steps[current].Left : steps[current].Right;
+                Dictionary<string, Node> nodes = input.Skip(2).Select(Node.Parse).ToDictionary(n => n.Id);
 
-                i++;
-                i %= instructions.Length;
-
-                total++;
+                return new Map(directions, nodes);
             }
 
-            return total;
-        }
+            /// <summary>
+            /// Find the total number of steps between two nodes
+            /// </summary>
+            /// <param name="start">Start node</param>
+            /// <param name="end">End node</param>
+            /// <returns>Total number of steps</returns>
+            public int TotalSteps(string start, string end) => this.TotalSteps(start, x => x == end);
 
-        public static long findLCM(long a, long b)
-        {
-            long num1, num2;
-
-            if (a > b)
+            /// <summary>
+            /// Find the total number of steps from the start node to a matching node
+            /// </summary>
+            /// <param name="start">Start node</param>
+            /// <param name="target">Target match condition</param>
+            /// <returns>Total number of steps</returns>
+            public int TotalSteps(string start, Predicate<string> target)
             {
-                num1 = a;
-                num2 = b;
-            }
-            else
-            {
-                num1 = b;
-                num2 = a;
-            }
-
-            for (int i = 1; i <= num2; i++)
-            {
-                if ((num1 * i) % num2 == 0)
+                if (target(start))
                 {
-                    return i * num1;
+                    return 0;
                 }
+
+                Node current = this.Nodes[start];
+                int total = 0;
+
+                foreach (TurnDirection direction in this.Directions.Cycle())
+                {
+                    total++;
+
+                    string next = current.Next(direction);
+                    current = this.Nodes[next];
+
+                    if (target(current.Id))
+                    {
+                        return total;
+                    }
+                }
+
+                return 0;
             }
-            return num2;
+        }
+
+        /// <summary>
+        /// A node on the map
+        /// </summary>
+        /// <param name="Id">Node ID</param>
+        /// <param name="Left">Next node ID if the left path is taken</param>
+        /// <param name="Right">Next node ID if the right path is taken</param>
+        private record Node(string Id, string Left, string Right)
+        {
+            /// <summary>
+            /// Parse a node from a string like "AAA = (BBB, CCC)"
+            /// </summary>
+            /// <param name="line">Input line</param>
+            /// <returns>Node</returns>
+            public static Node Parse(string line) => new(line[..3], line[7..10], line[12..15]);
+
+            /// <summary>
+            /// Get the next node from the given direction
+            /// </summary>
+            /// <param name="direction">Direction</param>
+            /// <returns>Next node ID</returns>
+            public string Next(TurnDirection direction) => direction == TurnDirection.Left ? this.Left : this.Right;
         }
     }
 }

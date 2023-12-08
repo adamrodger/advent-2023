@@ -57,5 +57,21 @@ namespace AdventOfCode.Utilities
                 yield return (i++, item);
             }
         }
+
+        public static IEnumerable<T> Cycle<T>(this ICollection<T> @this)
+        {
+            if (@this.Count == 0)
+            {
+                yield break;
+            }
+
+            while (true)
+            {
+                foreach (T item in @this)
+                {
+                    yield return item;
+                }
+            }
+        }
     }
 }
