@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using AdventOfCode.Utilities;
@@ -20,20 +19,20 @@ namespace AdventOfCode
                 total += numbers[^1] + CalculateNext(numbers);
             }
 
-            // 2043182781 -- too low
-            // 955547382 -- too low
-
             return total;
         }
 
-        public int Part2(string[] input)
+        public long Part2(string[] input)
         {
+            long total = 0;
+
             foreach (string line in input)
             {
-                throw new NotImplementedException("Part 2 not implemented");
+                long[] numbers = line.Numbers<long>();
+                total += numbers[0] - CalculatePrevious(numbers);
             }
 
-            return 0;
+            return total;
         }
 
         private static long CalculateNext(IList<long> numbers)
@@ -48,6 +47,20 @@ namespace AdventOfCode
             long next = CalculateNext(diffs);
 
             return diffs[^1] + next;
+        }
+
+        private static long CalculatePrevious(IList<long> numbers)
+        {
+            var diffs = numbers.Zip(numbers.Skip(1)).Select(pair => pair.Second - pair.First).ToArray();
+
+            if (diffs.All(d => d == 0))
+            {
+                return 0;
+            }
+
+            long next = CalculatePrevious(diffs);
+
+            return diffs[0] - next;
         }
     }
 }
