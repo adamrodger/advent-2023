@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using AdventOfCode.Utilities;
 
 namespace AdventOfCode
 {
@@ -9,58 +8,80 @@ namespace AdventOfCode
     /// </summary>
     public class Day9
     {
-        public long Part1(string[] input)
-        {
-            long total = 0;
+        public int Part1(string[] input) => input.Select(SensorReadings.Parse)
+                                                 .Select(s => s.NextTerm())
+                                                 .Sum();
 
-            foreach (string line in input)
+        public int Part2(string[] input) => input.Select(SensorReadings.Parse)
+                                                 .Select(s => s.PreviousTerm())
+                                                 .Sum();
+
+        /// <summary>
+        /// Readings from the OASIS sensor
+        /// </summary>
+        /// <param name="Values">Reading values</param>
+        private record SensorReadings(IList<int> Values)
+        {
+            /// <summary>
+            /// Parse the readings from the given line
+            /// </summary>
+            /// <param name="line"></param>
+            /// <returns>Parsed sensor readings</returns>
+            public static SensorReadings Parse(string line) => new(line.Split().Select(int.Parse).ToArray());
+
+            /// <summary>
+            /// Calculate the next term in the sensor reading sequence
+            /// </summary>
+            /// <returns>Next term</returns>
+            public int NextTerm() => this.Values[^1] + NextDelta(this.Values);
+
+            /// <summary>
+            /// Calculate the previous term in the sensor reading sequence
+            /// </summary>
+            /// <returns>Previous term</returns>
+            public int PreviousTerm() => this.Values[0] - PreviousDelta(this.Values);
+
+            /// <summary>
+            /// Get the delta to the next term
+            /// </summary>
+            /// <param name="numbers">Starting numbers</param>
+            /// <returns>Next delta</returns>
+            private static int NextDelta(IList<int> numbers)
             {
-                long[] numbers = line.Numbers<long>();
-                total += numbers[^1] + CalculateNext(numbers);
+                var diffs = numbers.Zip(numbers.Skip(1))
+                                   .Select(pair => pair.Second - pair.First)
+                                   .ToArray();
+
+                if (diffs.All(d => d == 0))
+                {
+                    return 0;
+                }
+
+                int next = NextDelta(diffs);
+
+                return diffs[^1] + next;
             }
 
-            return total;
-        }
-
-        public long Part2(string[] input)
-        {
-            long total = 0;
-
-            foreach (string line in input)
+            /// <summary>
+            /// Get the delta to the previous term
+            /// </summary>
+            /// <param name="numbers">Starting numbers</param>
+            /// <returns>Previous delta</returns>
+            private static int PreviousDelta(IList<int> numbers)
             {
-                long[] numbers = line.Numbers<long>();
-                total += numbers[0] - CalculatePrevious(numbers);
+                var diffs = numbers.Zip(numbers.Skip(1))
+                                   .Select(pair => pair.Second - pair.First)
+                                   .ToArray();
+
+                if (diffs.All(d => d == 0))
+                {
+                    return 0;
+                }
+
+                int previous = PreviousDelta(diffs);
+
+                return diffs[0] - previous;
             }
-
-            return total;
-        }
-
-        private static long CalculateNext(IList<long> numbers)
-        {
-            var diffs = numbers.Zip(numbers.Skip(1)).Select(pair => pair.Second - pair.First).ToArray();
-
-            if (diffs.All(d => d == 0))
-            {
-                return 0;
-            }
-
-            long next = CalculateNext(diffs);
-
-            return diffs[^1] + next;
-        }
-
-        private static long CalculatePrevious(IList<long> numbers)
-        {
-            var diffs = numbers.Zip(numbers.Skip(1)).Select(pair => pair.Second - pair.First).ToArray();
-
-            if (diffs.All(d => d == 0))
-            {
-                return 0;
-            }
-
-            long next = CalculatePrevious(diffs);
-
-            return diffs[0] - next;
         }
     }
 }
