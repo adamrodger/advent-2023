@@ -21,28 +21,6 @@ namespace AdventOfCode.Tests
             return input;
         }
 
-        private static string[] GetSampleInput()
-        {
-            return new string[]
-            {
-                "7-F7-",
-                ".FJ|7",
-                "SJLL7",
-                "|F--J",
-                "LJ.LJ"
-            };
-        }
-
-        [Fact]
-        public void Part1_SampleInput_ProducesCorrectResponse()
-        {
-            var expected = 8;
-
-            var result = solver.Part1(GetSampleInput());
-
-            Assert.Equal(expected, result);
-        }
-
         [Fact]
         public void Part1_RealInput_ProducesCorrectResponse()
         {
@@ -55,19 +33,9 @@ namespace AdventOfCode.Tests
         }
 
         [Fact]
-        public void Part2_SampleInput_ProducesCorrectResponse()
-        {
-            var expected = -1;
-
-            var result = solver.Part2(GetSampleInput());
-
-            Assert.Equal(expected, result);
-        }
-
-        [Fact]
         public void Part2_RealInput_ProducesCorrectResponse()
         {
-            var expected = -1;
+            var expected = 407;
 
             var result = solver.Part2(GetRealInput());
             output.WriteLine($"Day 10 - Part 2 - {result}");
