@@ -58,8 +58,8 @@ namespace AdventOfCode.Utilities
         /// <returns>New position</returns>
         public Point2D Move(Bearing bearing, int steps = 1) => bearing switch
         {
-            Bearing.North => (this.X, this.Y + steps),
-            Bearing.South => (this.X, this.Y - steps),
+            Bearing.North => (this.X, this.Y - steps),
+            Bearing.South => (this.X, this.Y + steps),
             Bearing.East => (this.X + steps, this.Y),
             Bearing.West => (this.X - steps, this.Y),
             _ => throw new ArgumentOutOfRangeException()
