@@ -298,4 +298,22 @@ public static class GridUtilities
 
         return result;
     }
+
+    /// <summary>
+    /// Process the input line by line and char by char
+    /// </summary>
+    /// <param name="input">Input</param>
+    /// <param name="action">Processing action</param>
+    public static void ForEach(this IReadOnlyList<string> input, Action<Point2D, char> action)
+    {
+        for (int y = 0; y < input.Count; y++)
+        {
+            string line = input[y];
+
+            for (int x = 0; x < line.Length; x++)
+            {
+                action((x, y), line[x]);
+            }
+        }
+    }
 }
