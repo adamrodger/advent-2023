@@ -39,8 +39,8 @@ namespace AdventOfCode
                     long distance = topLeft.ManhattanDistance(bottomRight);
 
                     // add the expanded columns/rows
-                    long expandedColumns = Enumerable.Range(topLeft.X, bottomRight.X - topLeft.X).Count(emptyColumns.Contains) * 1_000_000;
-                    long expandedRows = Enumerable.Range(topLeft.Y, bottomRight.Y - topLeft.Y).Count(emptyRows.Contains) * 1_000_000;
+                    long expandedColumns = Enumerable.Range(topLeft.X, bottomRight.X - topLeft.X).Count(emptyColumns.Contains);
+                    long expandedRows = Enumerable.Range(topLeft.Y, bottomRight.Y - topLeft.Y).Count(emptyRows.Contains);
 
                     total += distance + expandedColumns + expandedRows;
                 }
@@ -54,7 +54,7 @@ namespace AdventOfCode
             return total;
         }
 
-        public long Part2(string[] input)
+        public long Part2(string[] input, int scale = 1_000_000)
         {
             List<Point2D> galaxies = new();
 
@@ -83,8 +83,8 @@ namespace AdventOfCode
                     long distance = topLeft.ManhattanDistance(bottomRight);
 
                     // add the expanded columns/rows
-                    long expandedColumns = Enumerable.Range(topLeft.X, bottomRight.X - topLeft.X).Count(emptyColumns.Contains) * 1_000_000;
-                    long expandedRows = Enumerable.Range(topLeft.Y, bottomRight.Y - topLeft.Y).Count(emptyRows.Contains) * 1_000_000;
+                    long expandedColumns = Enumerable.Range(topLeft.X, bottomRight.X - topLeft.X).Count(emptyColumns.Contains) * (scale - 1);
+                    long expandedRows = Enumerable.Range(topLeft.Y, bottomRight.Y - topLeft.Y).Count(emptyRows.Contains) * (scale - 1);
 
                     total += distance + expandedColumns + expandedRows;
                 }

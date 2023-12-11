@@ -63,9 +63,9 @@ namespace AdventOfCode.Tests
         [Fact]
         public void Part2_SampleInput_ProducesCorrectResponse()
         {
-            var expected = -1;
+            var expected = 1030;
 
-            var result = solver.Part2(GetSampleInput());
+            var result = solver.Part2(GetSampleInput(), 10);
 
             Assert.Equal(expected, result);
         }
