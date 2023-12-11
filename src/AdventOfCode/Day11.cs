@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using AdventOfCode.Utilities;
@@ -12,19 +11,19 @@ namespace AdventOfCode
     {
         public long Part1(string[] input)
         {
-            var map = GalaxyMap.Parse(input);
+            var map = GalaxyMap.Parse(input, 2);
 
             return map.GalaxyPairs()
-                      .Select(pair => map.MinimumDistance(pair.Start, pair.End, 2))
+                      .Select(pair => (long)pair.Start.ManhattanDistance(pair.End))
                       .Sum();
         }
 
         public long Part2(string[] input, int scalingFactor = 1_000_000)
         {
-            var map = GalaxyMap.Parse(input);
+            var map = GalaxyMap.Parse(input, scalingFactor);
 
             return map.GalaxyPairs()
-                      .Select(pair => map.MinimumDistance(pair.Start, pair.End, scalingFactor))
+                      .Select(pair => (long)pair.Start.ManhattanDistance(pair.End))
                       .Sum();
         }
 
@@ -32,31 +31,35 @@ namespace AdventOfCode
         /// A map of a region of space containing multiple galaxies
         /// </summary>
         /// <param name="Galaxies">Galaxy locations in the observed map</param>
-        /// <param name="EmptyColumns">Index of every column which does not contain a galaxy</param>
-        /// <param name="EmptyRows">Index of every row which does not contain a galaxy</param>
-        private record GalaxyMap(ISet<Point2D> Galaxies, ISet<int> EmptyColumns, ISet<int> EmptyRows)
+        private record GalaxyMap(IReadOnlyList<Point2D> Galaxies)
         {
             /// <summary>
             /// Parse the map
             /// </summary>
             /// <param name="input">Input</param>
+            /// <param name="scalingFactor">Galaxy expansion factor - empty regions will grow by this factor</param>
             /// <returns>Map</returns>
-            public static GalaxyMap Parse(IReadOnlyList<string> input)
+            public static GalaxyMap Parse(IReadOnlyList<string> input, int scalingFactor)
             {
-                HashSet<Point2D> galaxies = new();
+                int[] emptyColumns = Enumerable.Range(0, input[0].Length).Where(col => input.All(l => l[col] == '.')).ToArray();
+                int[] emptyRows = Enumerable.Range(0, input.Count).Where(row => input[row].All(c => c == '.')).ToArray();
+
+                List<Point2D> galaxies = new();
 
                 input.ForEach((point, c) =>
                 {
-                    if (c == '#')
+                    if (c != '#')
                     {
-                        galaxies.Add(point);
+                        return;
                     }
+
+                    int expandedColumns = emptyColumns.Count(x => x <= point.X) * (scalingFactor - 1);
+                    int expandedRows = emptyRows.Count(y => y <= point.Y) * (scalingFactor - 1);
+
+                    galaxies.Add(point + (expandedColumns, expandedRows));
                 });
 
-                var emptyColumns = Enumerable.Range(0, input[0].Length).Where(c => galaxies.All(g => g.X != c)).ToHashSet();
-                var emptyRows = Enumerable.Range(0, input.Count).Where(c => galaxies.All(g => g.Y != c)).ToHashSet();
-
-                return new GalaxyMap(galaxies, emptyColumns, emptyRows);
+                return new GalaxyMap(galaxies);
             }
 
             /// <summary>
@@ -72,30 +75,6 @@ namespace AdventOfCode
                         yield return (start, end);
                     }
                 }
-            }
-
-            /// <summary>
-            /// Calculate the minimum distance from the start to end points taking into account space expansion in empty regions
-            /// </summary>
-            /// <param name="start">Start point</param>
-            /// <param name="end">End point</param>
-            /// <param name="scalingFactor">Scaling factor to apply to empty regions - e.g. 2 would indicate empty regions double in size</param>
-            /// <returns>Minimum distance after expansion is taken into account</returns>
-            public long MinimumDistance(Point2D start, Point2D end, int scalingFactor)
-            {
-                // calculate the top left and bottom right co-ordinates of the rectangle defined by the galaxies
-                Point2D topLeft = (Math.Min(start.X, end.X), Math.Min(start.Y, end.Y));
-                Point2D bottomRight = (Math.Max(start.X, end.X), Math.Max(start.Y, end.Y));
-
-                long distance = topLeft.ManhattanDistance(bottomRight);
-
-                // add the expanded columns/rows
-                long expandedColumns = Enumerable.Range(topLeft.X, bottomRight.X - topLeft.X).Count(this.EmptyColumns.Contains);
-                long expandedRows = Enumerable.Range(topLeft.Y, bottomRight.Y - topLeft.Y).Count(this.EmptyRows.Contains);
-
-                return distance
-                     + (expandedColumns * (scalingFactor - 1))
-                     + (expandedRows * (scalingFactor - 1));
             }
         }
     }
