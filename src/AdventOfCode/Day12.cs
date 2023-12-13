@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using AdventOfCode.Utilities;
@@ -13,7 +14,6 @@ namespace AdventOfCode
                                                   .Select(s => s.Combinations())
                                                   .Sum();
 
-        // 38181545406 -- too low
         public long Part2(string[] input) => input.Select(line => Spring.Parse(line, 5))
                                                   .Select(s => s.Combinations())
                                                   .Sum();
@@ -23,8 +23,10 @@ namespace AdventOfCode
         /// </summary>
         /// <param name="Description">Spring description</param>
         /// <param name="Groups">Segment groups</param>
-        private record Spring(string Description, IReadOnlyList<int> Groups)
+        private record Spring(string Description, int[] Groups)
         {
+            private readonly Dictionary<(int DescriptionRemaining, int GroupsRemaining), long> cache = new();
+
             /// <summary>
             /// Parse the spring from an input line
             /// </summary>
@@ -45,69 +47,94 @@ namespace AdventOfCode
             /// Find all the possible combinations of this spring description which satisfy the required groups
             /// </summary>
             /// <returns>Total combinations</returns>
-            public long Combinations() => this.Combinations(0, 0, 0, new Dictionary<(int, int, int), long>());
+            public long Combinations() => this.Combinations(this.Description, this.Groups);
 
             /// <summary>
             /// Recursively try all the different combinations that could satisfy the spring description by walking
             /// through the description and branching at each wildcard
             /// </summary>
-            /// <param name="springIndex">Current index into the spring description</param>
-            /// <param name="groupIndex">Current group ID being checked</param>
-            /// <param name="groupConsumed">Number of characters consumed in the group we're currently checking</param>
-            /// <param name="cache">Memoization cache</param>
+            /// <param name="spring">Current spring description slice</param>
+            /// <param name="groups">Remaining groups</param>
             /// <returns>Total number of combinations from the given starting conditions</returns>
-            private long Combinations(int springIndex, int groupIndex, int groupConsumed, IDictionary<(int, int, int), long> cache)
+            private long Combinations(ReadOnlySpan<char> spring, ReadOnlySpan<int> groups)
             {
-                if (cache.TryGetValue((springIndex, groupIndex, groupConsumed), out long combinations))
+                if (groups.IsEmpty)
                 {
-                    return combinations;
+                    return spring.Contains('#')
+                               ? 0  // ran out of groups but some spring sections are still left over
+                               : 1; // satisfied all groups with nothing left to check
                 }
 
-                // check if we fell off the end of the description
-                if (springIndex == this.Description.Length)
+                if (spring.IsEmpty)
                 {
-                    if (groupIndex == this.Groups.Count && groupConsumed == 0)
-                    {
-                        // finished satisfying all the groups
-                        return 1;
-                    }
-
-                    if (groupIndex == this.Groups.Count - 1 && this.Groups[groupIndex] == groupConsumed)
-                    {
-                        // final group was satisfied by the final character
-                        return 1;
-                    }
-
-                    // current group couldn't be satisfied or there were still some left that didn't get checked
-                    return 0;
+                    return 0; // ran out of spring but there are groups still unsatisfied
                 }
 
-                // advance through the description, checking combinations of remaining groups from here
-                char c = this.Description[springIndex];
+                (int, int) key = (spring.Length, groups.Length);
 
-                if (c is '.' or '?')
+                if (!this.cache.TryGetValue(key, out long combinations))
                 {
-                    if (groupConsumed == 0)
+                    combinations = spring[0] switch
                     {
-                        // not currently checking a group, just advance in the description
-                        combinations += this.Combinations(springIndex + 1, groupIndex, 0, cache);
-                    }
-                    else if (groupIndex < this.Groups.Count && this.Groups[groupIndex] == groupConsumed)
-                    {
-                        // finished a group, move to the next one
-                        combinations += this.Combinations(springIndex + 1, groupIndex + 1, 0, cache);
-                    }
-                }
+                        '.' => this.ConsumeAsRegularSegment(spring, groups),
+                        '#' => this.ConsumeAsBrokenSegment(spring, groups),
+                        '?' => this.ConsumeAsRegularSegment(spring, groups) + this.ConsumeAsBrokenSegment(spring, groups),
+                        _ => throw new ArgumentOutOfRangeException($"Invalid segment char '{spring[0]}'")
+                    };
 
-                if (c is '#' or '?')
-                {
-                    // consume this one in the current group
-                    combinations += this.Combinations(springIndex + 1, groupIndex, groupConsumed + 1, cache);
+                    this.cache[key] = combinations;
                 }
-
-                cache[(springIndex, groupIndex, groupConsumed)] = combinations;
 
                 return combinations;
+            }
+
+            /// <summary>
+            /// Consume the current leading char as if it's a regular segment (i.e. treat is as a . char)
+            /// </summary>
+            /// <param name="spring">Spring description</param>
+            /// <param name="groups">Groups to match</param>
+            /// <returns>Number of valid combinations from this state</returns>
+            private long ConsumeAsRegularSegment(ReadOnlySpan<char> spring, ReadOnlySpan<int> groups)
+            {
+                return this.Combinations(spring[1..], groups);
+            }
+
+            /// <summary>
+            /// Consume the current leading char as if it's a broken segment (i.e. treat is as a # char)
+            /// </summary>
+            /// <param name="spring">Spring description</param>
+            /// <param name="groups">Groups to match</param>
+            /// <returns>Number of valid combinations from this state</returns>
+            private long ConsumeAsBrokenSegment(ReadOnlySpan<char> spring, ReadOnlySpan<int> groups)
+            {
+                int groupSize = groups[0];
+
+                if (spring.Length < groupSize)
+                {
+                    return 0; // can't possibly fit
+                }
+
+                if (spring[..groupSize].Contains('.'))
+                {
+                    return 0; // hit a terminator before the group could be fully matched
+                }
+
+                if (spring.Length == groupSize)
+                {
+                    // rest of the string must all be # or ? chars
+                    return groups.Length == 1
+                               ? 1 // last group got satisfied
+                               : 0; // got to the end before satisfying all groups
+                }
+
+                if (spring[groupSize] != '#')
+                {
+                    // found a group terminator so we can fast forward and check the next group
+                    return this.Combinations(spring[(groupSize + 1)..], groups[1..]);
+                }
+
+                // the run of segments is too long to match the current group
+                return 0;
             }
         }
     }
