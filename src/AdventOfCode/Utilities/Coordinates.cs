@@ -5,6 +5,8 @@ namespace AdventOfCode.Utilities
 {
     public readonly record struct Point2D(int X, int Y)
     {
+        public Point2D Above => (this.X, this.Y - 1);
+
         public static implicit operator (int x, int y)(Point2D point)
         {
             return (point.X, point.Y);
