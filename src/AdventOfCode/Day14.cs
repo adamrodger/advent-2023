@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using AdventOfCode.Utilities;
@@ -15,7 +14,7 @@ namespace AdventOfCode
         public int Part1(string[] input)
         {
             Map map = Map.Parse(input);
-            map.Move(Bearing.North);
+            map.Tilt(Bearing.North);
             return map.Load;
         }
 
@@ -23,53 +22,69 @@ namespace AdventOfCode
         {
             Map map = Map.Parse(input);
 
-            List<int> loads = new();
+            List<int> loads = new(256);
+            Dictionary<string, int> seen = new(256);
 
-            for (int i = 0; i < 1000; i++)
+            int loopStart;
+
+            for (int i = 0; ; i++)
             {
                 map.Cycle();
-                int load = map.Load;
 
-                loads.Add(load);
+                string state = map.Print();
 
-                //Debug.WriteLine(map.Print());
+                if (seen.TryGetValue(state, out loopStart))
+                {
+                    break;
+                }
+
+                loads.Add(map.Load);
+                seen[state] = i;
             }
 
-
-            // 102921 -- too high
-            // 102188 -- too high
-
-            Dictionary<int, int> analysis = loads.GroupBy(x => x).ToDictionary(x => x.Key, x => x.Count());
-
-            // 101400 -- too high
-            // 101288 -- incorrect (5min lockout, no too high/low info)
-
-            var keys = analysis.Where(kvp => kvp.Value > 1).OrderBy(kvp => kvp.Key);
-
-            int cycleLength = keys.Count();
-
-            int index = ((1_000_000_000 - (analysis.Count - cycleLength)) % cycleLength) + analysis.Count - 1;
+            int loopLength = seen.Count - loopStart;
+            int index = (1_000_000_000 - loopStart) % loopLength + loopStart - 1;
 
             return loads[index];
         }
 
+        /// <summary>
+        /// Map of rocks and walls
+        /// </summary>
         private class Map
         {
-            private readonly ISet<Point2D> walls;
-            private readonly IList<Point2D> balls;
+            private readonly HashSet<Point2D> walls;
+            private readonly List<Point2D> balls;
             private readonly int height;
             private readonly int width;
+            private readonly StringBuilder printer;
 
+            /// <summary>
+            /// The load on the north wall of the map
+            /// </summary>
             public int Load => this.balls.Select(b => this.height - b.Y).Sum();
 
-            private Map(ISet<Point2D> walls, IList<Point2D> balls, int height, int width)
+            /// <summary>
+            /// Initialises a new instance of the <see cref="Map"/> class.
+            /// </summary>
+            /// <param name="walls">Fixed wall positions</param>
+            /// <param name="balls">Mobile ball positions</param>
+            /// <param name="height">Map height</param>
+            /// <param name="width">Map width</param>
+            private Map(HashSet<Point2D> walls, List<Point2D> balls, int height, int width)
             {
                 this.walls = walls;
                 this.balls = balls;
                 this.height = height;
                 this.width = width;
+                this.printer = new StringBuilder(this.width * this.height + this.height * Environment.NewLine.Length);
             }
 
+            /// <summary>
+            /// Parse the input
+            /// </summary>
+            /// <param name="input">Input</param>
+            /// <returns>Parsed map</returns>
             public static Map Parse(IReadOnlyList<string> input)
             {
                 HashSet<Point2D> walls = new();
@@ -90,22 +105,22 @@ namespace AdventOfCode
                 return new Map(walls, balls, input.Count, input[0].Length);
             }
 
+            /// <summary>
+            /// Perform one full tilting cycle on the map
+            /// </summary>
             public void Cycle()
             {
-                this.Move(Bearing.North);
-                //Debug.WriteLine(this.Print());
-
-                this.Move(Bearing.West);
-                //Debug.WriteLine(this.Print());
-
-                this.Move(Bearing.South);
-                //Debug.WriteLine(this.Print());
-
-                this.Move(Bearing.East);
-                //Debug.WriteLine(this.Print());
+                this.Tilt(Bearing.North);
+                this.Tilt(Bearing.West);
+                this.Tilt(Bearing.South);
+                this.Tilt(Bearing.East);
             }
 
-            public void Move(Bearing bearing)
+            /// <summary>
+            /// Tile the map in the given direction to move all of the balls
+            /// </summary>
+            /// <param name="bearing">Tilt direction</param>
+            public void Tilt(Bearing bearing)
             {
                 IEnumerable<Point2D> ordered = this.Order(bearing);
                 HashSet<Point2D> settled = new();
@@ -121,20 +136,18 @@ namespace AdventOfCode
                         next = current.Move(bearing);
                     }
 
-                    bool added = settled.Add(current);
-                    Debug.Assert(added);
+                    settled.Add(current);
                 }
-
-                Debug.Assert(this.balls.Count == settled.Count, "We've lost some balls...");
 
                 this.balls.Clear();
-
-                foreach (Point2D ball in settled)
-                {
-                    this.balls.Add(ball);
-                }
+                this.balls.AddRange(settled);
             }
 
+            /// <summary>
+            /// Order the balls so they can move correctly depending on the tilt direction
+            /// </summary>
+            /// <param name="bearing">Tilt direction</param>
+            /// <returns>Ordered balls to move</returns>
             private IEnumerable<Point2D> Order(Bearing bearing) => bearing switch
             {
                 Bearing.North => this.balls.OrderBy(b => b.Y),
@@ -144,6 +157,12 @@ namespace AdventOfCode
                 _ => throw new ArgumentOutOfRangeException(nameof(bearing), bearing, null)
             };
 
+            /// <summary>
+            /// Check if the given point is still in bounds according to the tilt direction
+            /// </summary>
+            /// <param name="point">Point</param>
+            /// <param name="bearing">Tilt direction</param>
+            /// <returns>Ball is still in bounds</returns>
             private bool InBounds(Point2D point, Bearing bearing) => bearing switch
             {
                 Bearing.North => point.Y > 0,
@@ -152,9 +171,13 @@ namespace AdventOfCode
                 Bearing.West => point.X > 0
             };
 
+            /// <summary>
+            /// Print the current state of the map
+            /// </summary>
+            /// <returns>Map state</returns>
             public string Print()
             {
-                StringBuilder s = new(this.width * this.height + this.height * Environment.NewLine.Length);
+                this.printer.Clear();
                 HashSet<Point2D> settled = this.balls.ToHashSet();
 
                 for (int y = 0; y < this.height; y++)
@@ -163,22 +186,22 @@ namespace AdventOfCode
                     {
                         if (this.walls.Contains((x, y)))
                         {
-                            s.Append('#');
+                            this.printer.Append('#');
                         }
                         else if (settled.Contains((x, y)))
                         {
-                            s.Append('O');
+                            this.printer.Append('O');
                         }
                         else
                         {
-                            s.Append('.');
+                            this.printer.Append('.');
                         }
                     }
 
-                    s.AppendLine();
+                    this.printer.AppendLine();
                 }
 
-                return s.ToString();
+                return this.printer.ToString();
             }
         }
     }
