@@ -44,9 +44,13 @@ namespace AdventOfCode
             // 101400 -- too high
             // 101288 -- incorrect (5min lockout, no too high/low info)
 
-            var keys = analysis.Where(kvp => kvp.Value > 2).OrderBy(kvp => kvp.Key);
+            var keys = analysis.Where(kvp => kvp.Value > 1).OrderBy(kvp => kvp.Key);
 
-            return map.Load;
+            int cycleLength = keys.Count();
+
+            int index = ((1_000_000_000 - (analysis.Count - cycleLength)) % cycleLength) + analysis.Count - 1;
+
+            return loads[index];
         }
 
         private class Map
