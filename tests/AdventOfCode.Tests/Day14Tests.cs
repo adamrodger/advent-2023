@@ -26,7 +26,16 @@ namespace AdventOfCode.Tests
         {
             return new string[]
             {
-                
+                "O....#....",
+                "O.OO#....#",
+                ".....##...",
+                "OO.#O....O",
+                ".O.....O#.",
+                "O.#..O.#.#",
+                "..O..#O..O",
+                ".......O..",
+                "#....###..",
+                "#OO..#....",
             };
         }
 
@@ -44,7 +53,7 @@ namespace AdventOfCode.Tests
         [Fact]
         public void Part2_SampleInput_ProducesCorrectResponse()
         {
-            var expected = -1;
+            var expected = 64;
 
             var result = solver.Part2(GetSampleInput());
 

@@ -1,5 +1,8 @@
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Text;
 using AdventOfCode.Utilities;
 
 namespace AdventOfCode
@@ -20,16 +23,28 @@ namespace AdventOfCode
         {
             Map map = Map.Parse(input);
 
-            // just establish some kind of number to check the cycle logic :D
-            map.Cycle();
-            map.Cycle();
-            map.Cycle();
-            map.Cycle();
-            map.Cycle();
-            map.Cycle();
-            map.Cycle();
+            List<int> loads = new();
+
+            for (int i = 0; i < 1000; i++)
+            {
+                map.Cycle();
+                int load = map.Load;
+
+                loads.Add(load);
+
+                //Debug.WriteLine(map.Print());
+            }
+
 
             // 102921 -- too high
+            // 102188 -- too high
+
+            Dictionary<int, int> analysis = loads.GroupBy(x => x).ToDictionary(x => x.Key, x => x.Count());
+
+            // 101400 -- too high
+            // 101288 -- incorrect (5min lockout, no too high/low info)
+
+            var keys = analysis.Where(kvp => kvp.Value > 2).OrderBy(kvp => kvp.Key);
 
             return map.Load;
         }
@@ -74,20 +89,26 @@ namespace AdventOfCode
             public void Cycle()
             {
                 this.Move(Bearing.North);
+                //Debug.WriteLine(this.Print());
+
                 this.Move(Bearing.West);
+                //Debug.WriteLine(this.Print());
+
                 this.Move(Bearing.South);
+                //Debug.WriteLine(this.Print());
+
                 this.Move(Bearing.East);
+                //Debug.WriteLine(this.Print());
             }
 
             public void Move(Bearing bearing)
             {
-                Queue<Point2D> toMove = new(this.balls);
+                IEnumerable<Point2D> ordered = this.Order(bearing);
                 HashSet<Point2D> settled = new();
-                this.balls.Clear();
 
-                while (toMove.Count != 0)
+                foreach (Point2D point in ordered)
                 {
-                    Point2D current = toMove.Dequeue();
+                    Point2D current = point;
                     Point2D next = current.Move(bearing);
 
                     while (this.InBounds(current, bearing) && !this.walls.Contains(next) && !settled.Contains(next))
@@ -96,18 +117,65 @@ namespace AdventOfCode
                         next = current.Move(bearing);
                     }
 
-                    settled.Add(current);
-                    this.balls.Add(current);
+                    bool added = settled.Add(current);
+                    Debug.Assert(added);
+                }
+
+                Debug.Assert(this.balls.Count == settled.Count, "We've lost some balls...");
+
+                this.balls.Clear();
+
+                foreach (Point2D ball in settled)
+                {
+                    this.balls.Add(ball);
                 }
             }
+
+            private IEnumerable<Point2D> Order(Bearing bearing) => bearing switch
+            {
+                Bearing.North => this.balls.OrderBy(b => b.Y),
+                Bearing.South => this.balls.OrderByDescending(b => b.Y),
+                Bearing.East => this.balls.OrderByDescending(b => b.X),
+                Bearing.West => this.balls.OrderBy(b => b.X),
+                _ => throw new ArgumentOutOfRangeException(nameof(bearing), bearing, null)
+            };
 
             private bool InBounds(Point2D point, Bearing bearing) => bearing switch
             {
                 Bearing.North => point.Y > 0,
-                Bearing.South => point.Y < this.height,
-                Bearing.East => point.X < this.width,
+                Bearing.South => point.Y < this.height - 1,
+                Bearing.East => point.X < this.width - 1,
                 Bearing.West => point.X > 0
             };
+
+            public string Print()
+            {
+                StringBuilder s = new(this.width * this.height + this.height * Environment.NewLine.Length);
+                HashSet<Point2D> settled = this.balls.ToHashSet();
+
+                for (int y = 0; y < this.height; y++)
+                {
+                    for (int x = 0; x < this.width; x++)
+                    {
+                        if (this.walls.Contains((x, y)))
+                        {
+                            s.Append('#');
+                        }
+                        else if (settled.Contains((x, y)))
+                        {
+                            s.Append('O');
+                        }
+                        else
+                        {
+                            s.Append('.');
+                        }
+                    }
+
+                    s.AppendLine();
+                }
+
+                return s.ToString();
+            }
         }
     }
 }
