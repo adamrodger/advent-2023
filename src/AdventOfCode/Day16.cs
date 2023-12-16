@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using AdventOfCode.Utilities;
@@ -10,142 +9,183 @@ namespace AdventOfCode
     /// </summary>
     public class Day16
     {
-        public int Part1(string[] input)
+        public int Part1(string[] input) => BeamGrid.Parse(input).EnergisedTiles((0, 0), Bearing.East);
+
+        public int Part2(string[] input) => BeamGrid.Parse(input).MaxEnergisedTiles();
+
+        /// <summary>
+        /// A grid of reflectors and splitters for light beams
+        /// </summary>
+        /// <param name="Grid">Grid</param>
+        /// <param name="Width">Grid width</param>
+        /// <param name="Height">Grid height</param>
+        private record BeamGrid(char[,] Grid, int Width, int Height)
         {
-            char[,] grid = input.ToGrid();
+            private readonly Queue<(Point2D Point, Bearing Bearing)> queue = new();
+            private readonly HashSet<(Point2D Point, Bearing Bearing)> seen = new();
 
-            return Simulate(grid, (0,0), Bearing.East);
-        }
-
-        public int Part2(string[] input)
-        {
-            char[,] grid = input.ToGrid();
-
-            int max = int.MinValue;
-            
-            foreach (int x in Enumerable.Range(0, input[0].Length))
+            /// <summary>
+            /// Parse the beam grid
+            /// </summary>
+            /// <param name="input">Input</param>
+            /// <returns>Beam grid</returns>
+            public static BeamGrid Parse(IReadOnlyList<string> input)
             {
-                int result = Simulate(grid, (x, 0), Bearing.South);
-                max = Math.Max(max, result);
+                var grid = input.ToGrid();
+                int width = input[0].Length;
+                int height = input.Count;
 
-                result = Simulate(grid, (x, input.Length - 1), Bearing.North);
-                max = Math.Max(max, result);
+                return new BeamGrid(grid, width, height);
             }
 
-            foreach (int y in Enumerable.Range(0, input.Length))
+            /// <summary>
+            /// Maximum energised tiles that can be achieved from all starting edge points
+            /// </summary>
+            /// <returns>Max energised tiles</returns>
+            public int MaxEnergisedTiles() => this.WalkEdges().Max(edge => this.EnergisedTiles(edge.Point, edge.Bearing));
+
+            /// <summary>
+            /// Calculate how many tiles would be energised by the light beam starting at the given point on the given bearing
+            /// </summary>
+            /// <param name="startPoint">Start point</param>
+            /// <param name="startBearing">Start bearing</param>
+            /// <returns>Number of energised tiles</returns>
+            public int EnergisedTiles(Point2D startPoint, Bearing startBearing)
             {
-                int result = Simulate(grid, (0, y), Bearing.East);
-                max = Math.Max(max, result);
+                this.queue.Enqueue((startPoint, startBearing));
 
-                result = Simulate(grid, (input[0].Length - 1, y), Bearing.West);
-                max = Math.Max(max, result);
-            }
-
-            return max;
-        }
-
-        private static int Simulate(char[,] grid, Point2D start, Bearing startBearing)
-        {
-            Queue<(Point2D Point, Bearing Bearing)> queue = new();
-            queue.Enqueue((start, startBearing));
-
-            HashSet<(Point2D Point, Bearing Bearing)> seen = new();
-
-            while (queue.Count > 0)
-            {
-                (Point2D point, Bearing bearing) = queue.Dequeue();
-
-                seen.Add((point, bearing));
-
-                char current = grid[point.Y, point.X];
-
-                foreach ((Point2D Point, Bearing Bearing) next in Next(current, point, bearing))
+                while (this.queue.Count > 0)
                 {
-                    if (next.Point.X < 0 || next.Point.X >= grid.GetLength(1) || next.Point.Y < 0 || next.Point.Y >= grid.GetLength(0))
-                    {
-                        // fell off the edge
-                        continue;
-                    }
+                    (Point2D point, Bearing bearing) = this.queue.Dequeue();
 
-                    if (!seen.Contains(next))
+                    this.seen.Add((point, bearing));
+
+                    char current = this.Grid[point.Y, point.X];
+
+                    foreach (Bearing move in NextMoves(current, bearing))
                     {
-                        queue.Enqueue(next);
+                        (Point2D Point, Bearing Bearing) next = (point.Move(move), move);
+
+                        if (this.InBounds(next.Point) && !this.seen.Contains(next))
+                        {
+                            this.queue.Enqueue(next);
+                        }
                     }
+                }
+
+                int energised = this.seen.Select(pair => pair.Point).Distinct().Count();
+
+                // TODO: Retain the seen list between calls so we can memoize future calls without re-simulating
+                this.seen.Clear();
+
+                return energised;
+            }
+
+            /// <summary>
+            /// Calculate where the light beam will move next after hitting the current tile on the given bearing
+            ///
+            /// The beam can split if it hits a splitter, hence why more than one result can be returned
+            /// </summary>
+            /// <param name="current">Current tile</param>
+            /// <param name="bearing">Current bearing</param>
+            /// <returns>Bearing(s) of the light beam continuation(s)</returns>
+            private static IEnumerable<Bearing> NextMoves(char current, Bearing bearing)
+            {
+                switch (current)
+                {
+                    case '.':
+                        yield return bearing;
+                        break;
+                    case '-':
+                        switch (bearing)
+                        {
+                            case Bearing.East or Bearing.West:
+                                yield return bearing;
+                                break;
+                            case Bearing.North or Bearing.South:
+                                yield return Bearing.East;
+                                yield return Bearing.West;
+                                break;
+                        }
+
+                        break;
+                    case '|':
+                        switch (bearing)
+                        {
+                            case Bearing.East or Bearing.West:
+                                yield return Bearing.North;
+                                yield return Bearing.South;
+                                break;
+                            case Bearing.North or Bearing.South:
+                                yield return bearing;
+                                break;
+                        }
+
+                        break;
+                    case '\\':
+                        switch (bearing)
+                        {
+                            case Bearing.North:
+                                yield return Bearing.West;
+                                break;
+                            case Bearing.South:
+                                yield return Bearing.East;
+                                break;
+                            case Bearing.East:
+                                yield return Bearing.South;
+                                break;
+                            case Bearing.West:
+                                yield return Bearing.North;
+                                break;
+                        }
+
+                        break;
+                    case '/':
+                        switch (bearing)
+                        {
+                            case Bearing.North:
+                                yield return Bearing.East;
+                                break;
+                            case Bearing.South:
+                                yield return Bearing.West;
+                                break;
+                            case Bearing.East:
+                                yield return Bearing.North;
+                                break;
+                            case Bearing.West:
+                                yield return Bearing.South;
+                                break;
+                        }
+
+                        break;
                 }
             }
 
-            return seen.Select(pair => pair.Point).Distinct().Count();
-        }
+            /// <summary>
+            /// Check if the given point is in bounds
+            /// </summary>
+            /// <param name="point">Point</param>
+            /// <returns>Point is in bounds</returns>
+            private bool InBounds(Point2D point) => point.X >= 0 && point.X < this.Width
+                                                 && point.Y >= 0 && point.Y < this.Height;
 
-        private static IEnumerable<(Point2D Point, Bearing Bearing)> Next(char current, Point2D point, Bearing bearing)
-        {
-            switch (current)
+            /// <summary>
+            /// Get all the edge locations along with their inward pointing bearing
+            /// </summary>
+            /// <returns>Edges</returns>
+            private IEnumerable<(Point2D Point, Bearing Bearing)> WalkEdges()
             {
-                case '.':
-                    yield return (point.Move(bearing), bearing);
-                    break;
-                case '-':
-                    switch (bearing)
-                    {
-                        case Bearing.East or Bearing.West:
-                            yield return (point.Move(bearing), bearing);
-                            break;
-                        case Bearing.North or Bearing.South:
-                            yield return (point.Move(Bearing.East), Bearing.East);
-                            yield return (point.Move(Bearing.West), Bearing.West);
-                            break;
-                    }
+                foreach (int x in Enumerable.Range(0, this.Width))
+                {
+                    yield return ((x, 0), Bearing.South);
+                    yield return ((x, this.Height - 1), Bearing.North);
+                }
 
-                    break;
-                case '|':
-                    switch (bearing)
-                    {
-                        case Bearing.East or Bearing.West:
-                            yield return (point.Move(Bearing.North), Bearing.North);
-                            yield return (point.Move(Bearing.South), Bearing.South);
-                            break;
-                        case Bearing.North or Bearing.South:
-                            yield return (point.Move(bearing), bearing);
-                            break;
-                    }
-
-                    break;
-                case '\\':
-                    switch (bearing)
-                    {
-                        case Bearing.North:
-                            yield return (point.Move(Bearing.West), Bearing.West);
-                            break;
-                        case Bearing.South:
-                            yield return (point.Move(Bearing.East), Bearing.East);
-                            break;
-                        case Bearing.East:
-                            yield return (point.Move(Bearing.South), Bearing.South);
-                            break;
-                        case Bearing.West:
-                            yield return (point.Move(Bearing.North), Bearing.North);
-                            break;
-                    }
-
-                    break;
-                case '/':
-                    switch (bearing)
-                    {
-                        case Bearing.North:
-                            yield return (point.Move(Bearing.East), Bearing.East);
-                            break;
-                        case Bearing.South:
-                            yield return (point.Move(Bearing.West), Bearing.West);
-                            break;
-                        case Bearing.East:
-                            yield return (point.Move(Bearing.North), Bearing.North);
-                            break;
-                        case Bearing.West:
-                            yield return (point.Move(Bearing.South), Bearing.South);
-                            break;
-                    }
-
-                    break;
+                foreach (int y in Enumerable.Range(0, this.Height))
+                {
+                    yield return ((0, y), Bearing.East);
+                    yield return ((this.Width - 1, y), Bearing.West);
+                }
             }
         }
     }
