@@ -44,12 +44,12 @@ public static class GridUtilities
     /// </summary>
     /// <param name="input">Input lines</param>
     /// <returns>Grid</returns>
-    public static T[,] ToGrid<T>(this string[] input)
+    public static T[,] ToGrid<T>(this IReadOnlyList<string> input)
     {
         // y,x remember, not x,y
-        T[,] grid = new T[input.Length, input[0].Length];
+        T[,] grid = new T[input.Count, input[0].Length];
 
-        for (int y = 0; y < input.Length; y++)
+        for (int y = 0; y < input.Count; y++)
         {
             for (int x = 0; x < input[y].Length; x++)
             {
