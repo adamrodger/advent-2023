@@ -12,20 +12,28 @@ namespace AdventOfCode
         public int Part1(string[] input)
         {
             LavaGrid grid = LavaGrid.Parse(input);
-
-            // 870 - too low - someone else's answer :D so we're close
-            // 877 -- too low (just a guess from other possible answers from above
-            return grid.ShortestPath((0, 0), (grid.Width - 1, grid.Height - 1), LavaGrid.NextMovesPart1);
+            return grid.ShortestPath(0, 3);
         }
 
         public int Part2(string[] input)
         {
             LavaGrid grid = LavaGrid.Parse(input);
-            return grid.ShortestPath((0, 0), (grid.Width - 1, grid.Height - 1), LavaGrid.NextMovesPart2);
+            return grid.ShortestPath(4, 10);
         }
 
+        /// <summary>
+        /// Lava grid
+        /// </summary>
+        /// <param name="Grid">Grid of tile costs</param>
+        /// <param name="Width">Grid width</param>
+        /// <param name="Height">Grid height</param>
         private record LavaGrid(int[,] Grid, int Width, int Height)
         {
+            /// <summary>
+            /// Parse the grid
+            /// </summary>
+            /// <param name="input">Input</param>
+            /// <returns>Lava grid</returns>
             public static LavaGrid Parse(IReadOnlyList<string> input)
             {
                 int[,] grid = input.ToGrid<int>();
@@ -33,18 +41,31 @@ namespace AdventOfCode
                 return new LavaGrid(grid, input[0].Length, input.Count);
             }
 
-            public int ShortestPath(Point2D start, Point2D target, Func<StepState, IEnumerable<StepState>> nextMoves)
+            /// <summary>
+            /// Calculate the shortest valid path from the top left of the grid to the bottom right
+            /// within the given constraints
+            /// </summary>
+            /// <param name="minimumMoves">Minimum moves before we're allowed to make a turn</param>
+            /// <param name="maximumMoves">Maximum moves before we must make a turn</param>
+            /// <returns>Shortest valid path</returns>
+            /// <exception cref="InvalidOperationException">No path found</exception>
+            public int ShortestPath(int minimumMoves, int maximumMoves)
             {
-                HashSet<StepState> visited = new();
-                Dictionary<StepState, int> distance = new()
+                StepState startSouth = new((0, 1), Bearing.South, 1);
+                StepState startEast = new((1, 0), Bearing.East, 1);
+                Point2D target = (this.Width - 1, this.Height - 1);
+
+                Dictionary<StepState, int> distances = new()
                 {
-                    [new StepState(start, Bearing.South, 0)] = 0,
-                    [new StepState(start, Bearing.East, 0)] = 0,
+                    [startSouth] = this.Grid[1, 0],
+                    [startEast] = this.Grid[0, 1],
                 };
 
                 PriorityQueue<StepState, int> queue = new();
-                queue.Enqueue(new StepState(start, Bearing.South, 0), this.Grid[1, 0]);
-                queue.Enqueue(new StepState(start, Bearing.East, 0), this.Grid[0, 1]);
+                queue.Enqueue(startSouth, this.Grid[1, 0]);
+                queue.Enqueue(startEast, this.Grid[0, 1]);
+
+                HashSet<StepState> visited = new();
 
                 while (queue.Count > 0)
                 {
@@ -54,10 +75,10 @@ namespace AdventOfCode
                     if (current.Point == target)
                     {
                         // guaranteed to be shortest because the queue is ordered by cost
-                        return distance[current];
+                        return distances[current];
                     }
 
-                    foreach (StepState next in nextMoves(current))
+                    foreach (StepState next in NextMoves(current, minimumMoves, maximumMoves))
                     {
                         if (!this.InBounds(next.Point))
                         {
@@ -69,50 +90,38 @@ namespace AdventOfCode
                             continue;
                         }
 
-                        int newDistance = distance[current] + (this.Grid[next.Point.Y, next.Point.X]);
+                        int nextDistance = distances[current] + this.Grid[next.Point.Y, next.Point.X];
 
                         // only move if it's cheaper than the current best path
-                        if (!distance.TryGetValue(next, out int value) || newDistance < value)
+                        if (!distances.TryGetValue(next, out int currentBest) || nextDistance < currentBest)
                         {
-                            distance[next] = newDistance;
-                            queue.Enqueue(next, newDistance);
+                            distances[next] = nextDistance;
+                            queue.Enqueue(next, nextDistance);
                         }
                     }
                 }
 
-                throw new InvalidOperationException($"No path found from {start} to {target}");
+                throw new InvalidOperationException("No path found");
             }
 
-            public static IEnumerable<StepState> NextMovesPart1(StepState state)
+            /// <summary>
+            /// Enumerable the possible next moves from the current state
+            /// </summary>
+            /// <param name="state">Current state</param>
+            /// <param name="minimumMoves">Minimum moves before we're allowed to make a turn</param>
+            /// <param name="maximumMoves">Maximum moves before we must make a turn</param>
+            /// <returns>Valid next moves</returns>
+            private static IEnumerable<StepState> NextMoves(StepState state, int minimumMoves, int maximumMoves)
             {
-                if (state.Consecutive < 2)
+                if (state.Consecutive < minimumMoves)
                 {
                     yield return new StepState(state.Point.Move(state.Bearing), state.Bearing, state.Consecutive + 1);
-                }
 
-                switch (state.Bearing)
-                {
-                    case Bearing.South or Bearing.North:
-                        yield return new StepState(state.Point.Move(Bearing.West), Bearing.West, 0);
-                        yield return new StepState(state.Point.Move(Bearing.East), Bearing.East, 0);
-                        break;
-
-                    case Bearing.East or Bearing.West:
-                        yield return new StepState(state.Point.Move(Bearing.North), Bearing.North, 0);
-                        yield return new StepState(state.Point.Move(Bearing.South), Bearing.South, 0);
-                        break;
-                }
-            }
-
-            public static IEnumerable<StepState> NextMovesPart2(StepState state)
-            {
-                if (state.Consecutive < 3)
-                {
-                    yield return new StepState(state.Point.Move(state.Bearing), state.Bearing, state.Consecutive + 1);
+                    // not met minimum yet, so can't make any further moves
                     yield break;
                 }
 
-                if (state.Consecutive < 9)
+                if (state.Consecutive < maximumMoves)
                 {
                     yield return new StepState(state.Point.Move(state.Bearing), state.Bearing, state.Consecutive + 1);
                 }
@@ -120,13 +129,13 @@ namespace AdventOfCode
                 switch (state.Bearing)
                 {
                     case Bearing.South or Bearing.North:
-                        yield return new StepState(state.Point.Move(Bearing.West), Bearing.West, 0);
-                        yield return new StepState(state.Point.Move(Bearing.East), Bearing.East, 0);
+                        yield return new StepState(state.Point.Move(Bearing.West), Bearing.West, 1);
+                        yield return new StepState(state.Point.Move(Bearing.East), Bearing.East, 1);
                         break;
 
                     case Bearing.East or Bearing.West:
-                        yield return new StepState(state.Point.Move(Bearing.North), Bearing.North, 0);
-                        yield return new StepState(state.Point.Move(Bearing.South), Bearing.South, 0);
+                        yield return new StepState(state.Point.Move(Bearing.North), Bearing.North, 1);
+                        yield return new StepState(state.Point.Move(Bearing.South), Bearing.South, 1);
                         break;
                 }
             }
@@ -140,6 +149,12 @@ namespace AdventOfCode
                                                  && point.Y >= 0 && point.Y < this.Height;
         }
 
+        /// <summary>
+        /// Step state
+        /// </summary>
+        /// <param name="Point">Current point</param>
+        /// <param name="Bearing">Bearing taken to enter this point (to prevent backtracking, which is not allowed)</param>
+        /// <param name="Consecutive">Number of consecutive steps taken on this bearing</param>
         private record StepState(Point2D Point, Bearing Bearing, int Consecutive);
     }
 }
