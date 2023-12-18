@@ -65,9 +65,43 @@ namespace AdventOfCode.Tests
         }
 
         [Fact]
+        public void Part2_MyInput_ProducesCorrectResponse()
+        {
+            /*
+                01234567891111
+                          0123
+             0      #####
+             1      #   #
+             2  #####   #
+             3  #       #
+             4  #####   ######
+             5      #        #
+             6      ##########
+
+             */
+            long expected = 62;
+
+            var result = this.solver.Part2(new []
+            {
+                "R 4 (#000040)",
+                "D 4 (#000041)",
+                "R 5 (#000050)",
+                "D 2 (#000021)",
+                "L 9 (#000092)",
+                "U 2 (#000023)",
+                "L 4 (#000042)",
+                "U 2 (#000023)",
+                "R 4 (#000040)",
+                "U 2 (#000023)",
+            });
+
+            Assert.Equal(expected, result);
+        }
+
+        [Fact]
         public void Part2_RealInput_ProducesCorrectResponse()
         {
-            var expected = -1;
+            var expected = 201398068194715;
 
             var result = solver.Part2(GetRealInput());
             output.WriteLine($"Day 18 - Part 2 - {result}");

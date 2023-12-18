@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
-using System.Text;
 using AdventOfCode.Utilities;
 
 namespace AdventOfCode
@@ -13,251 +11,150 @@ namespace AdventOfCode
     /// </summary>
     public class Day18
     {
-        public int Part1(string[] input)
+        // this originally generated the perimeter points then flood-filled the centre
+        public long Part1(string[] input) => DigPlan.ForPart1(input).CalculateArea();
+
+        // Had to look up hints for part 2. I didn't know the maths for finding the area of an irregular polygon
+        public long Part2(string[] input) => DigPlan.ForPart2(input).CalculateArea();
+
+        /// <summary>
+        /// Plan for digging the lava lake
+        /// </summary>
+        /// <param name="Instructions">Plan instructions for digging the perimeter</param>
+        private record DigPlan(IList<DigInstruction> Instructions)
         {
-            HashSet<Point2D> points = new();
-            Point2D current = (0, 0);
-
-            points.Add(current);
-
-            foreach (string line in input)
+            /// <summary>
+            /// Instructions for digging the lava lake in part 1
+            /// </summary>
+            /// <param name="input">Input</param>
+            /// <returns>Dig plan</returns>
+            public static DigPlan ForPart1(IReadOnlyList<string> input)
             {
-                Bearing direction = line[0] switch
-                {
-                    'U' => Bearing.North,
-                    'D' => Bearing.South,
-                    'R' => Bearing.East,
-                    'L' => Bearing.West,
-                    _ => throw new ArgumentOutOfRangeException()
-                };
+                var instructions = from line in input
+                                   let direction = line[0] switch
+                                   {
+                                       'U' => Bearing.North,
+                                       'D' => Bearing.South,
+                                       'R' => Bearing.East,
+                                       'L' => Bearing.West,
+                                       _ => throw new ArgumentOutOfRangeException()
+                                   }
+                                   let steps = line.Numbers<int>().First()
+                                   select new DigInstruction(direction, steps);
 
-                int steps = line.Numbers<int>().First();
-
-                foreach (Point2D next in Dig(current, direction, steps))
-                {
-                    points.Add(next);
-                    current = next;
-                }
+                return new DigPlan(instructions.ToArray());
             }
 
-            int minX = points.MinBy(p => p.X).X;
-            int maxX = points.MaxBy(p => p.X).X;
-            int minY = points.MinBy(p => p.Y).Y;
-            int maxY = points.MaxBy(p => p.Y).Y;
-
-            StringBuilder s = new();
-
-            for (int y = minY; y <= maxY; y++)
+            /// <summary>
+            /// Instructions for digging the lava lake in part 2
+            /// </summary>
+            /// <param name="input">Input</param>
+            /// <returns>Dig plan</returns>
+            public static DigPlan ForPart2(IReadOnlyList<string> input)
             {
-                s.Append($"{y:D4}: ");
+                var instructions = from line in input
+                                   let direction = line[^2] switch
+                                   {
+                                       '3' => Bearing.North,
+                                       '1' => Bearing.South,
+                                       '0' => Bearing.East,
+                                       '2' => Bearing.West,
+                                       _ => throw new ArgumentOutOfRangeException()
+                                   }
+                                   let steps = int.Parse(line[^7..^2], NumberStyles.HexNumber)
+                                   select new DigInstruction(direction, steps);
 
-                for (int x = minX; x <= maxX; x++)
-                {
-                    s.Append(points.Contains((x, y)) ? '#' : '.');
-                }
-
-                s.AppendLine();
+                return new DigPlan(instructions.ToArray());
             }
 
-            Debug.WriteLine(s.ToString());
-
-            // from visual inspection, flood fill will work instead of the parity checking style from a previous day
-
-            Point2D point = (Enumerable.Range(minX, maxX - minX).First(x => points.Contains((x, 0)) && !points.Contains((x + 1, 0))) + 1, 0);
-
-            Queue<Point2D> queue = new();
-            queue.Enqueue(point);
-
-            while (queue.Count > 0)
+            /// <summary>
+            /// Calculate the entire area of the lava lake
+            /// </summary>
+            /// <returns>Lava lake area</returns>
+            public long CalculateArea()
             {
-                point = queue.Dequeue();
+                (IList<(long X, long Y)> vertices, long perimeter) = this.PlanPerimeter();
 
-                if (points.Contains(point))
-                {
-                    continue;
-                }
+                long area = CalculateInternalArea(vertices);
 
-                points.Add(point);
+                // See https://en.wikipedia.org/wiki/Pick%27s_theorem
+                area = area - perimeter / 2 + 1;
 
-                foreach (Point2D next in point.Adjacent4().Where(n => !points.Contains(n)))
-                {
-                    queue.Enqueue(next);
-                }
+                return area + perimeter;
             }
 
-            return points.Count;
-        }
-
-        public long Part2(string[] input)
-        {
-            long minX = long.MaxValue;
-            long maxX = long.MinValue;
-            long minY = long.MaxValue;
-            long maxY = long.MinValue;
-
-            long x = 0;
-            long y = 0;
-
-            SortedSet<HorizontalRange> horizontals = new();
-            SortedSet<VerticalRange> verticals = new();
-
-            foreach (string line in input)
+            /// <summary>
+            /// Use the instructions to map out the perimeter
+            /// </summary>
+            /// <returns>All the vertices and the total perimeter length</returns>
+            private (IList<(long X, long Y)> Vertices, long Perimeter) PlanPerimeter()
             {
-                Bearing direction = line[^2] switch
-                {
-                    '3' => Bearing.North,
-                    '1' => Bearing.South,
-                    '0' => Bearing.East,
-                    '2' => Bearing.West,
-                    _ => throw new ArgumentOutOfRangeException()
-                };
+                long x = 0;
+                long y = 0;
+                long perimeter = 0;
+                List<(long X, long Y)> vertices = new() { (0, 0) };
 
-                int steps = int.Parse(line[^7..^2], NumberStyles.HexNumber);
-
-                switch (direction)
+                foreach ((Bearing direction, var steps) in this.Instructions)
                 {
-                    case Bearing.North:
-                        verticals.Add(new VerticalRange(x, y - steps, y));
-                        y -= steps;
-                        break;
-                    case Bearing.South:
-                        verticals.Add(new VerticalRange(x, y, y + steps));
-                        y += steps;
-                        break;
-                    case Bearing.East:
-                        horizontals.Add(new HorizontalRange(y, x, x + steps));
-                        x += steps;
-                        break;
-                    case Bearing.West:
-                        horizontals.Add(new HorizontalRange(y, x - steps, x));
-                        x -= steps;
-                        break;
+                    long deltaX = 0;
+                    long deltaY = 0;
+
+                    switch (direction)
+                    {
+                        case Bearing.North:
+                            deltaY -= steps;
+                            break;
+                        case Bearing.South:
+                            deltaY += steps;
+                            break;
+                        case Bearing.East:
+                            deltaX += steps;
+                            break;
+                        case Bearing.West:
+                            deltaX -= steps;
+                            break;
+                    }
+
+                    x += deltaX;
+                    y += deltaY;
+                    perimeter += steps;
+                    vertices.Add((x, y));
                 }
 
-                minX = Math.Min(x, minX);
-                maxX = Math.Max(x, maxX);
-                minY = Math.Min(y, minY);
-                maxY = Math.Max(y, maxY);
+                return (vertices, perimeter);
             }
 
-            long total = horizontals.Select(h => h.End - h.Start + 1).Sum();
-
-            for (y = minY; y < maxY; y++)
+            /// <summary>
+            /// Calculate the internal area of the lava lake defined by the given vertices
+            /// </summary>
+            /// <param name="vertices">Vertices</param>
+            /// <returns>Internal area</returns>
+            /// <remarks>
+            /// See:
+            ///     https://en.m.wikipedia.org/wiki/Shoelace_formula#Triangle_formula
+            ///     https://www.theoremoftheday.org/GeometryAndTrigonometry/Shoelace/TotDShoelace.pdf
+            /// </remarks>
+            private static long CalculateInternalArea(IList<(long X, long Y)> vertices)
             {
-                var verticalIntersections = verticals.Where(v => v.Start <= y && v.End >= y).OrderBy(range => range.X).Pairs();
+                long area = 0;
 
-                foreach ((VerticalRange First, VerticalRange Second) pair in verticalIntersections)
+                // create a closed loop and iterate the vertices anti-clockwise
+                IEnumerable<((long X, long Y) First, (long X, long Y) Second)> loop = vertices.Zip(vertices.Skip(1).Append(vertices[0]));
+
+                foreach (((long X, long Y) first, (long X, long Y) second) in loop)
                 {
-                    total += pair.Second.X - pair.First.X + 1;
+                    area += (first.X * second.Y) - (second.X * first.Y);
                 }
-            }
 
-            // 201397207615723 -- too low
-            // added counting the horizontals themselves, still too low on sample input
-
-            return total;
-        }
-
-        private static IEnumerable<Point2D> Dig(Point2D start, Bearing direction, int steps)
-        {
-            Point2D current = start;
-
-            for (int i = 0; i < steps; i++)
-            {
-                current = current.Move(direction);
-                yield return current;
+                return area / 2;
             }
         }
 
-        private record VerticalRange(long X, long Start, long End) : IComparable<VerticalRange>
-        {
-            /// <summary>Compares the current instance with another object of the same type and returns an integer that indicates whether the current instance precedes, follows, or occurs in the same position in the sort order as the other object.</summary>
-            /// <param name="other">An object to compare with this instance.</param>
-            /// <returns>A value that indicates the relative order of the objects being compared. The return value has these meanings:
-            /// <list type="table"><listheader><term> Value</term><description> Meaning</description></listheader><item><term> Less than zero</term><description> This instance precedes <paramref name="other" /> in the sort order.</description></item><item><term> Zero</term><description> This instance occurs in the same position in the sort order as <paramref name="other" />.</description></item><item><term> Greater than zero</term><description> This instance follows <paramref name="other" /> in the sort order.</description></item></list></returns>
-            public int CompareTo(VerticalRange other)
-            {
-                if (ReferenceEquals(this, other))
-                {
-                    return 0;
-                }
-
-                if (ReferenceEquals(null, other))
-                {
-                    return 1;
-                }
-
-                int xComparison = this.X.CompareTo(other.X);
-                if (xComparison != 0)
-                {
-                    return xComparison;
-                }
-
-                int startComparison = this.Start.CompareTo(other.Start);
-                if (startComparison != 0)
-                {
-                    return startComparison;
-                }
-
-                return this.End.CompareTo(other.End);
-            }
-        }
-
-        private record HorizontalRange(long Y, long Start, long End) : IComparable<HorizontalRange>
-        {
-            /// <summary>Compares the current instance with another object of the same type and returns an integer that indicates whether the current instance precedes, follows, or occurs in the same position in the sort order as the other object.</summary>
-            /// <param name="other">An object to compare with this instance.</param>
-            /// <returns>A value that indicates the relative order of the objects being compared. The return value has these meanings:
-            /// <list type="table"><listheader><term> Value</term><description> Meaning</description></listheader><item><term> Less than zero</term><description> This instance precedes <paramref name="other" /> in the sort order.</description></item><item><term> Zero</term><description> This instance occurs in the same position in the sort order as <paramref name="other" />.</description></item><item><term> Greater than zero</term><description> This instance follows <paramref name="other" /> in the sort order.</description></item></list></returns>
-            public int CompareTo(HorizontalRange other)
-            {
-                if (ReferenceEquals(this, other))
-                {
-                    return 0;
-                }
-
-                if (ReferenceEquals(null, other))
-                {
-                    return 1;
-                }
-
-                int yComparison = this.Y.CompareTo(other.Y);
-                if (yComparison != 0)
-                {
-                    return yComparison;
-                }
-
-                int startComparison = this.Start.CompareTo(other.Start);
-                if (startComparison != 0)
-                {
-                    return startComparison;
-                }
-
-                return this.End.CompareTo(other.End);
-            }
-        }
-    }
-
-    public static class PairExtensions
-    {
-        public static IEnumerable<(T First, T Second)> Pairs<T>(this IEnumerable<T> items)
-        {
-            T first = default;
-
-            bool yielded = true;
-
-            foreach (T item in items)
-            {
-                if (yielded)
-                {
-                    first = item;
-                    yielded = false;
-                    continue;
-                }
-
-                yield return (first, item);
-                yielded = true;
-            }
-        }
+        /// <summary>
+        /// Instruction for digging an edge of the lava lake
+        /// </summary>
+        /// <param name="Direction">Dig direction</param>
+        /// <param name="Steps">Number of steps to dig</param>
+        private record DigInstruction(Bearing Direction, int Steps);
     }
 }
