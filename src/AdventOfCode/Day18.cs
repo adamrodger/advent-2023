@@ -140,7 +140,7 @@ namespace AdventOfCode
                 maxY = Math.Max(y, maxY);
             }
 
-            long total = 0;
+            long total = horizontals.Select(h => h.End - h.Start + 1).Sum();
 
             for (y = minY; y < maxY; y++)
             {
@@ -153,6 +153,7 @@ namespace AdventOfCode
             }
 
             // 201397207615723 -- too low
+            // added counting the horizontals themselves, still too low on sample input
 
             return total;
         }
