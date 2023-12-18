@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using AdventOfCode.Utilities;
@@ -87,14 +88,73 @@ namespace AdventOfCode
             return points.Count;
         }
 
-        public int Part2(string[] input)
+        public long Part2(string[] input)
         {
+            long minX = long.MaxValue;
+            long maxX = long.MinValue;
+            long minY = long.MaxValue;
+            long maxY = long.MinValue;
+
+            long x = 0;
+            long y = 0;
+
+            SortedSet<HorizontalRange> horizontals = new();
+            SortedSet<VerticalRange> verticals = new();
+
             foreach (string line in input)
             {
-                throw new NotImplementedException("Part 2 not implemented");
+                Bearing direction = line[^2] switch
+                {
+                    '3' => Bearing.North,
+                    '1' => Bearing.South,
+                    '0' => Bearing.East,
+                    '2' => Bearing.West,
+                    _ => throw new ArgumentOutOfRangeException()
+                };
+
+                int steps = int.Parse(line[^7..^2], NumberStyles.HexNumber);
+
+                switch (direction)
+                {
+                    case Bearing.North:
+                        verticals.Add(new VerticalRange(x, y - steps, y));
+                        y -= steps;
+                        break;
+                    case Bearing.South:
+                        verticals.Add(new VerticalRange(x, y, y + steps));
+                        y += steps;
+                        break;
+                    case Bearing.East:
+                        horizontals.Add(new HorizontalRange(y, x, x + steps));
+                        x += steps;
+                        break;
+                    case Bearing.West:
+                        horizontals.Add(new HorizontalRange(y, x - steps, x));
+                        x -= steps;
+                        break;
+                }
+
+                minX = Math.Min(x, minX);
+                maxX = Math.Max(x, maxX);
+                minY = Math.Min(y, minY);
+                maxY = Math.Max(y, maxY);
             }
 
-            return 0;
+            long total = 0;
+
+            for (y = minY; y < maxY; y++)
+            {
+                var verticalIntersections = verticals.Where(v => v.Start <= y && v.End >= y).OrderBy(range => range.X).Pairs();
+
+                foreach ((VerticalRange First, VerticalRange Second) pair in verticalIntersections)
+                {
+                    total += pair.Second.X - pair.First.X + 1;
+                }
+            }
+
+            // 201397207615723 -- too low
+
+            return total;
         }
 
         private static IEnumerable<Point2D> Dig(Point2D start, Bearing direction, int steps)
@@ -105,6 +165,97 @@ namespace AdventOfCode
             {
                 current = current.Move(direction);
                 yield return current;
+            }
+        }
+
+        private record VerticalRange(long X, long Start, long End) : IComparable<VerticalRange>
+        {
+            /// <summary>Compares the current instance with another object of the same type and returns an integer that indicates whether the current instance precedes, follows, or occurs in the same position in the sort order as the other object.</summary>
+            /// <param name="other">An object to compare with this instance.</param>
+            /// <returns>A value that indicates the relative order of the objects being compared. The return value has these meanings:
+            /// <list type="table"><listheader><term> Value</term><description> Meaning</description></listheader><item><term> Less than zero</term><description> This instance precedes <paramref name="other" /> in the sort order.</description></item><item><term> Zero</term><description> This instance occurs in the same position in the sort order as <paramref name="other" />.</description></item><item><term> Greater than zero</term><description> This instance follows <paramref name="other" /> in the sort order.</description></item></list></returns>
+            public int CompareTo(VerticalRange other)
+            {
+                if (ReferenceEquals(this, other))
+                {
+                    return 0;
+                }
+
+                if (ReferenceEquals(null, other))
+                {
+                    return 1;
+                }
+
+                int xComparison = this.X.CompareTo(other.X);
+                if (xComparison != 0)
+                {
+                    return xComparison;
+                }
+
+                int startComparison = this.Start.CompareTo(other.Start);
+                if (startComparison != 0)
+                {
+                    return startComparison;
+                }
+
+                return this.End.CompareTo(other.End);
+            }
+        }
+
+        private record HorizontalRange(long Y, long Start, long End) : IComparable<HorizontalRange>
+        {
+            /// <summary>Compares the current instance with another object of the same type and returns an integer that indicates whether the current instance precedes, follows, or occurs in the same position in the sort order as the other object.</summary>
+            /// <param name="other">An object to compare with this instance.</param>
+            /// <returns>A value that indicates the relative order of the objects being compared. The return value has these meanings:
+            /// <list type="table"><listheader><term> Value</term><description> Meaning</description></listheader><item><term> Less than zero</term><description> This instance precedes <paramref name="other" /> in the sort order.</description></item><item><term> Zero</term><description> This instance occurs in the same position in the sort order as <paramref name="other" />.</description></item><item><term> Greater than zero</term><description> This instance follows <paramref name="other" /> in the sort order.</description></item></list></returns>
+            public int CompareTo(HorizontalRange other)
+            {
+                if (ReferenceEquals(this, other))
+                {
+                    return 0;
+                }
+
+                if (ReferenceEquals(null, other))
+                {
+                    return 1;
+                }
+
+                int yComparison = this.Y.CompareTo(other.Y);
+                if (yComparison != 0)
+                {
+                    return yComparison;
+                }
+
+                int startComparison = this.Start.CompareTo(other.Start);
+                if (startComparison != 0)
+                {
+                    return startComparison;
+                }
+
+                return this.End.CompareTo(other.End);
+            }
+        }
+    }
+
+    public static class PairExtensions
+    {
+        public static IEnumerable<(T First, T Second)> Pairs<T>(this IEnumerable<T> items)
+        {
+            T first = default;
+
+            bool yielded = true;
+
+            foreach (T item in items)
+            {
+                if (yielded)
+                {
+                    first = item;
+                    yielded = false;
+                    continue;
+                }
+
+                yield return (first, item);
+                yielded = true;
             }
         }
     }
