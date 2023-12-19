@@ -62,6 +62,8 @@ namespace AdventOfCode
             Dictionary<string, PartRule> rules = input.TakeWhile(line => !string.IsNullOrEmpty(line))
                                                       .Select(PartRule.Parse)
                                                       .ToDictionary(r => r.Id);
+            rules["A"] = new PartRule("A", Array.Empty<PartPredicate>());
+            rules["R"] = new PartRule("R", Array.Empty<PartPredicate>());
 
             // 171210436954933152 -- too high
 
@@ -70,24 +72,25 @@ namespace AdventOfCode
 
         private long PossibleCombinations(PartRule current, PartBounds bounds, Dictionary<string, PartRule> rules)
         {
+            if (current.Id == "R")
+            {
+                return 0;
+            }
+
+            if (current.Id == "A")
+            {
+                return bounds.Possibilities;
+            }
+
             long total = 0;
 
             foreach (PartPredicate predicate in current.Predicates)
             {
-                if (predicate.Destination == "R")
-                {
-                    return 0;
-                }
+                // reduce the valid bounds according to the current predicate
+                total += PossibleCombinations(rules[predicate.Destination], bounds.MatchedBounds(predicate), rules);
 
-                if (predicate.Destination == "A")
-                {
-                    return bounds.Possibilities;
-                }
-
-                PartRule destination = rules[predicate.Destination];
-
-                total += PossibleCombinations(destination, bounds.MatchedBounds(predicate), rules);
-                total += PossibleCombinations(destination, bounds.NotMatchedBounds(predicate), rules);
+                // next predicate didn't match this one, so reduce the bounds accordingly in the opposite direction
+                bounds = bounds.NotMatchedBounds(predicate);
             }
 
             return total;
@@ -196,7 +199,7 @@ namespace AdventOfCode
         {
             public static readonly PartBounds Default = new(1, 4000, 1, 4000, 1, 4000, 1, 4000);
 
-            public long Possibilities => (long)(MaxX - MinX) * (MaxM - MinM) * (MaxA - MinA) * (MaxS - MinS);
+            public long Possibilities => (long)(MaxX - MinX + 1) * (MaxM - MinM + 1) * (MaxA - MinA + 1) * (MaxS - MinS + 1);
 
             public PartBounds MatchedBounds(PartPredicate predicate) => (predicate.Property, predicate.Operation) switch
             {
