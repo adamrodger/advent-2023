@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using AdventOfCode.Utilities;
@@ -24,40 +25,35 @@ namespace AdventOfCode
         public long Part2(string[] input)
         {
             var graph = ModuleGraph.Parse(input);
-            return graph.MinimumButtonPushesToOutputLow();
+            return graph.MinimumButtonPushesToOutputLowPulse();
         }
 
-        private class ModuleGraph
+        /// <summary>
+        /// Graph of modules
+        /// </summary>
+        private record ModuleGraph(IDictionary<string, Module> Modules)
         {
-            private readonly IDictionary<string, Module> modules;
-
             private long highSent;
             private long lowSent;
 
+            /// <summary>
+            /// Score of the graph,which is number of high pulses times number of low pulses sent so far
+            /// </summary>
             public long Score => this.highSent * this.lowSent;
 
             /// <summary>
-            /// Initialises a new instance of the <see cref="ModuleGraph"/> class.
+            /// Parse the input to a graph of modules
             /// </summary>
-            public ModuleGraph(IDictionary<string, Module> modules)
-            {
-                this.modules = modules;
-            }
-
+            /// <param name="input">Input</param>
+            /// <returns>Module graph</returns>
             public static ModuleGraph Parse(IReadOnlyList<string> input)
             {
-                var modules = input.Select(Module.Parse).ToDictionary(m => m.Id);
+                var modules = input.Select(Module.Parse).Append(new OutputModule("rx")).ToDictionary(m => m.Id);
 
                 foreach (Module module in modules.Values)
                 {
                     foreach (string output in module.Outputs)
                     {
-                        if (!modules.ContainsKey(output))
-                        {
-                            // hmmmmmm...... and it's called rx as well......
-                            continue;
-                        }
-
                         modules[output].AddInput(module.Id);
                     }
                 }
@@ -65,6 +61,9 @@ namespace AdventOfCode
                 return new ModuleGraph(modules);
             }
 
+            /// <summary>
+            /// Push the button which starts sending pulses around all modules and returns when no more pulses are sent
+            /// </summary>
             public void PushButton()
             {
                 Queue<(string Sender, string Destination, Pulse Pulse)> queue = new();
@@ -83,13 +82,7 @@ namespace AdventOfCode
                         this.highSent++;
                     }
 
-                    if (!this.modules.ContainsKey(destination))
-                    {
-                        // hmmmmmmmmmmmmmmmmmmmmmmmmmm
-                        continue;
-                    }
-
-                    Module module = this.modules[destination];
+                    Module module = this.Modules[destination];
 
                     foreach ((string Destination, Pulse Pulse) next in module.Process(sender, pulse))
                     {
@@ -98,7 +91,11 @@ namespace AdventOfCode
                 }
             }
 
-            public long MinimumButtonPushesToOutputLow()
+            /// <summary>
+            /// Calculate how many pushes of the button it would take for the output module to receive a low pulse
+            /// </summary>
+            /// <returns></returns>
+            public long MinimumButtonPushesToOutputLowPulse()
             {
                 /*
                  See inputs/day20_graphviz.dot, which you can visualise here: https://dreampuf.github.io/GraphvizOnline
@@ -151,12 +148,7 @@ namespace AdventOfCode
                             }
                         }
 
-                        if (!this.modules.ContainsKey(destination))
-                        {
-                            continue;
-                        }
-
-                        Module module = this.modules[destination];
+                        Module module = this.Modules[destination];
 
                         foreach ((string Destination, Pulse Pulse) next in module.Process(sender, pulse))
                         {
@@ -167,17 +159,31 @@ namespace AdventOfCode
             }
         }
 
+        /// <summary>
+        /// A module in the graph
+        /// </summary>
         private abstract class Module
         {
+            /// <summary>
+            /// Module ID
+            /// </summary>
             public string Id { get; }
 
+            /// <summary>
+            /// Module inputs
+            /// </summary>
             public IList<string> Inputs { get; }
 
+            /// <summary>
+            /// Module outputs
+            /// </summary>
             public IReadOnlyList<string> Outputs { get; }
 
             /// <summary>
             /// Initialises a new instance of the <see cref="Module"/> class.
             /// </summary>
+            /// <param name="id">Module ID</param>
+            /// <param name="outputs">Module outputs</param>
             protected Module(string id, IReadOnlyList<string> outputs)
             {
                 this.Id = id;
@@ -185,6 +191,11 @@ namespace AdventOfCode
                 this.Outputs = outputs;
             }
 
+            /// <summary>
+            /// Parse a module from the given input line
+            /// </summary>
+            /// <param name="input">Input</param>
+            /// <returns>Module</returns>
             public static Module Parse(string input)
             {
                 var parts = input.Split(" -> ");
@@ -205,20 +216,36 @@ namespace AdventOfCode
                 return new BroadcastModule("broadcast", outputs);
             }
 
+            /// <summary>
+            /// Add an input to this module
+            /// </summary>
+            /// <param name="input"></param>
             public virtual void AddInput(string input)
             {
                 this.Inputs.Add(input);
             }
 
+            /// <summary>
+            /// Process a pulse
+            /// </summary>
+            /// <param name="input">Input module that generate the pulse</param>
+            /// <param name="pulse">Pulse type</param>
+            /// <returns>Pulses to send next (which may be none)</returns>
             public abstract IEnumerable<(string Destination, Pulse Pulse)> Process(string input, Pulse pulse);
         }
 
+        /// <summary>
+        /// Pulse type
+        /// </summary>
         private enum Pulse
         {
             High,
             Low
         }
 
+        /// <summary>
+        /// Flip-flop module, which flips state when receiving a low pulse and sends the opposite pulse to all outputs
+        /// </summary>
         private class FlipFlopModule : Module
         {
             private bool active = false;
@@ -230,24 +257,30 @@ namespace AdventOfCode
             {
             }
 
+            /// <summary>
+            /// Process a pulse
+            /// </summary>
+            /// <param name="input">Input module that generate the pulse</param>
+            /// <param name="pulse">Pulse type</param>
+            /// <returns>Pulses to send next (which may be none)</returns>
             public override IEnumerable<(string Destination, Pulse Pulse)> Process(string input, Pulse pulse)
             {
                 if (pulse == Pulse.High)
                 {
-                    yield break; // ignore
+                    return Enumerable.Empty<(string, Pulse)>();
                 }
 
                 this.active = !this.active;
 
                 Pulse nextPulse = this.active ? Pulse.High : Pulse.Low;
 
-                foreach (string output in this.Outputs)
-                {
-                    yield return (output, nextPulse);
-                }
+                return this.Outputs.Select(output => (output, nextPulse));
             }
         }
 
+        /// <summary>
+        /// Conjunction module, which sends a low pulse if all inputs are high, otherwise sends a high pulse
+        /// </summary>
         private class ConjunctionModule : Module
         {
             private readonly List<Pulse> states = new();
@@ -259,12 +292,23 @@ namespace AdventOfCode
             {
             }
 
+            /// <summary>
+            /// Add an input to this module
+            /// </summary>
+            /// <param name="input"></param>
             public override void AddInput(string input)
             {
+                // keep track of input states, assuming they're in the same order as the inputs themselves
                 this.states.Add(Pulse.Low);
                 base.AddInput(input);
             }
 
+            /// <summary>
+            /// Process a pulse
+            /// </summary>
+            /// <param name="input">Input module that generate the pulse</param>
+            /// <param name="pulse">Pulse type</param>
+            /// <returns>Pulses to send next (which may be none)</returns>
             public override IEnumerable<(string Destination, Pulse Pulse)> Process(string input, Pulse pulse)
             {
                 int index = this.Inputs.IndexOf(input);
@@ -272,13 +316,13 @@ namespace AdventOfCode
 
                 Pulse nextPulse = this.states.All(s => s == Pulse.High) ? Pulse.Low : Pulse.High;
 
-                foreach (string output in this.Outputs)
-                {
-                    yield return (output, nextPulse);
-                }
+                return this.Outputs.Select(output => (output, nextPulse));
             }
         }
 
+        /// <summary>
+        /// Broadcast module, which simply propagates a pulse to all outputs
+        /// </summary>
         private class BroadcastModule : Module
         {
             /// <summary>
@@ -288,9 +332,39 @@ namespace AdventOfCode
             {
             }
 
+            /// <summary>
+            /// Process a pulse
+            /// </summary>
+            /// <param name="input">Input module that generate the pulse</param>
+            /// <param name="pulse">Pulse type</param>
+            /// <returns>Pulses to send next (which may be none)</returns>
             public override IEnumerable<(string Destination, Pulse Pulse)> Process(string input, Pulse pulse)
             {
                 return this.Outputs.Select(output => (output, pulse));
+            }
+        }
+
+        /// <summary>
+        /// Output module, which receives all pulses and never transmit any
+        /// </summary>
+        private class OutputModule : Module
+        {
+            /// <summary>
+            /// Initialises a new instance of the <see cref="OutputModule"/> class.
+            /// </summary>
+            public OutputModule(string id) : base(id, Array.Empty<string>())
+            {
+            }
+
+            /// <summary>
+            /// Process a pulse
+            /// </summary>
+            /// <param name="input">Input module that generate the pulse</param>
+            /// <param name="pulse">Pulse type</param>
+            /// <returns>Pulses to send next (which may be none)</returns>
+            public override IEnumerable<(string Destination, Pulse Pulse)> Process(string input, Pulse pulse)
+            {
+                return Enumerable.Empty<(string Destination, Pulse Pulse)>();
             }
         }
     }
