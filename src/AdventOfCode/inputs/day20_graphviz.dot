@@ -1,75 +1,102 @@
-digraph D {
+digraph Modules {
+    # entry point
+    broadcaster -> {nn, lz, mj, tx}
+    broadcaster [style=filled fillcolor=orange]
 
-{ rank = same mj nn tx lz }
+    # broadcast entry points
+    { rank = same mj nn tx lz }
+    mj [style=filled fillcolor=burlywood]
+    nn [style=filled fillcolor=burlywood]
+    tx [style=filled fillcolor=burlywood]
+    lz [style=filled fillcolor=burlywood]
 
-{ rank = same fk rz lf br }
+    # loop exit check points
+    { rank = same fz pn vd th }
+    fz [style=filled fillcolor=orchid]
+    pn [style=filled fillcolor=orchid]
+    vd [style=filled fillcolor=orchid]
+    th [style=filled fillcolor=orchid]
 
-subgraph control {
-    fk -> {lb}
-    rz -> {lb}
-    lf -> {lb}
-    br -> {lb}
-    lb -> {rx}
-}
+    # special output points
+    { rank = same fk rz lf br }
+    fk [style=filled fillcolor=lightseagreen]
+    rz [style=filled fillcolor=lightseagreen]
+    lf [style=filled fillcolor=lightseagreen]
+    br [style=filled fillcolor=lightseagreen]
 
+    # output points
+    lb [style=filled fillcolor=yellow]
+    rx [style=filled fillcolor=coral]
 
-hf -> {qk}
-xp -> {pn, mq}
+    subgraph cycle1 {
+        mj -> {th, np}
+        th -> {mj, rz, np, fq, cm}
+        np -> {fq}
+        fq -> {xd}
+        xd -> {th, gp}
+        gp -> {cm, th}
+        cm -> {fm}
+        fm -> {hh, th}
+        hh -> {th, dq}
+        dq -> {dj, th}
+        dj -> {th, sx}
+        sx -> {th, xb}
+        xb -> {th}
+    }
 
-nm -> {hn}
-zb -> {gz}
+    subgraph cycle2 {
+        tx -> {fz, qn}
+        qn -> {fz, bt}
+        bt -> {fz, dn}
+        dn -> {nm, fz}
+        fz -> {fk, nm, tx}
+        nm -> {hn}
+        hn -> {xn, fz}
+        xn -> {fz, kb}
+        kb -> {cr, fz}
+        cr -> {fl, fz}
+        fl -> {fz, rq}
+        rq -> {fn, fz}
+        fn -> {fz}
+    }
 
-nn -> {vd, zc}
-xn -> {fz, kb}
-gz -> {vf}
-pn -> {lz, hq, lf, mh, bh, mq}
-xb -> {th}
-vf -> {nc, vd}
-ds -> {kz, pn}
-cm -> {fm}
-qz -> {bh, pn}
+    subgraph cycle3 {
+        lz -> {vq, pn}
+        vq -> {qz, pn}
+        pn -> {lz, hq, lf, mh, bh, mq}
+        qz -> {bh, pn}
+        bh -> {hq}
+        hq -> {mh}
+        mh -> {xp}
+        xp -> {pn, mq}
+        mq -> {jd}
+        jd -> {pn, vx}
+        vx -> {pn, ds}
+        ds -> {kz, pn}
+        kz -> {pn}
+    }
 
+    subgraph cycle4 {
+        nn -> {vd, zc}
+        vd -> {zc, nn, hf, br, zb, tp, gz}
+        zc -> {ms}
+        ms -> {tp, vd}
+        tp -> {hf}
+        hf -> {qk}
+        qk -> {vd, zb}
+        zb -> {gz}
+        gz -> {vf}
+        vf -> {nc, vd}
+        nc -> {sf, vd}
+        sf -> {vd, xv}
+        xv -> {vd}
+    }
 
-vx -> {pn, ds}
-kz -> {pn}
-gp -> {cm, th}
-hq -> {mh}
-fq -> {xd}
-mj -> {th, np}
-lz -> {vq, pn}
-hn -> {xn, fz}
-fl -> {fz, rq}
-fm -> {hh, th}
-tx -> {fz, qn}
-mh -> {xp}
-dn -> {nm, fz}
-xv -> {vd}
-vd -> {zc, nn, hf, br, zb, tp, gz}
-np -> {fq}
-sf -> {vd, xv}
-rq -> {fn, fz}
-zc -> {ms}
-
-qn -> {fz, bt}
-qk -> {vd, zb}
-ms -> {tp, vd}
-xd -> {th, gp}
-hh -> {th, dq}
-sx -> {th, xb}
-fn -> {fz}
-jd -> {pn, vx}
-mq -> {jd}
-th -> {mj, rz, np, fq, cm}
-bt -> {fz, dn}
-dq -> {dj, th}
-tp -> {hf}
-nc -> {sf, vd}
-broadcaster -> {nn, lz, mj, tx}
-bh -> {hq}
-fz -> {fk, nm, tx}
-cr -> {fl, fz}
-vq -> {qz, pn}
-dj -> {th, sx}
-kb -> {cr, fz}
-
+    subgraph outputs {
+        fk -> {lb}
+        rz -> {lb}
+        lf -> {lb}
+        br -> {lb}
+        lb -> {rx}
+    }
 }
