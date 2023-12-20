@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using AdventOfCode.Utilities;
 
 namespace AdventOfCode
 {
@@ -20,18 +21,10 @@ namespace AdventOfCode
             return graph.Score;
         }
 
-        public int Part2(string[] input)
+        public long Part2(string[] input)
         {
             var graph = ModuleGraph.Parse(input);
-
-            int i = 0;
-
-            while (!graph.PushButtonAndCheckReceiver())
-            {
-                i++;
-            }
-
-            return i + 1;
+            return graph.MinimumButtonPushesToOutputLow();
         }
 
         private class ModuleGraph
@@ -105,44 +98,72 @@ namespace AdventOfCode
                 }
             }
 
-            public bool PushButtonAndCheckReceiver()
+            public long MinimumButtonPushesToOutputLow()
             {
-                Queue<(string Sender, string Destination, Pulse Pulse)> queue = new();
-                queue.Enqueue(("button", "broadcast", Pulse.Low));
+                /*
+                 See inputs/day20_graphviz.dot, which you can visualise here: https://dreampuf.github.io/GraphvizOnline
 
-                while (queue.Count > 0)
+                 These 4 modules are 'special' - they all need to get a low pulse at exactly the same time, and each
+                 receives a pulse once a big cycle is complete. That means the answer is the LCM of all their periods.
+                
+                 We could find these programmatically for anyone's input assuming we all got basically the same thing just
+                 with different labels (i.e. an rx node with a single conjunction node as its input, which itself has 4
+                 conjunction nodes as inputs which are the terminating points of sub-cycles).
+
+                 In my input this is:
+
+                    fk  rz       lf  br
+                     |   |       |   |
+                     |   ---v v---   |
+                     -----> lb <------
+                             |
+                             v
+                            rx
+                */
+                Dictionary<string, long> specialModules = new Dictionary<string, long>
                 {
-                    (string sender, string destination, Pulse pulse) = queue.Dequeue();
+                    ["fk"] = -1,
+                    ["rz"] = -1,
+                    ["lf"] = -1,
+                    ["br"] = -1,
+                };
 
-                    if (pulse == Pulse.Low)
-                    {
-                        this.lowSent++;
-                    }
-                    else
-                    {
-                        this.highSent++;
-                    }
+                long buttonPushes = 0;
 
-                    if (!this.modules.ContainsKey(destination))
+                while (true)
+                {
+                    buttonPushes++;
+
+                    Queue<(string Sender, string Destination, Pulse Pulse)> queue = new();
+                    queue.Enqueue(("button", "broadcast", Pulse.Low));
+
+                    while (queue.Count > 0)
                     {
-                        // hmmmmmmmmmmmmmmmmmmmmmmmmmm
-                        if (pulse == Pulse.Low)
+                        (string sender, string destination, Pulse pulse) = queue.Dequeue();
+
+                        if (pulse == Pulse.Low && specialModules.TryGetValue(destination, out long cycle) && cycle == -1)
                         {
-                            return true;
+                            specialModules[destination] = buttonPushes;
+
+                            if (specialModules.Values.All(v => v != -1))
+                            {
+                                return specialModules.Values.Aggregate((acc, v) => acc.LowestCommonMultiple(v));
+                            }
                         }
 
-                        continue;
-                    }
+                        if (!this.modules.ContainsKey(destination))
+                        {
+                            continue;
+                        }
 
-                    Module module = this.modules[destination];
+                        Module module = this.modules[destination];
 
-                    foreach ((string Destination, Pulse Pulse) next in module.Process(sender, pulse))
-                    {
-                        queue.Enqueue((module.Id, next.Destination, next.Pulse));
+                        foreach ((string Destination, Pulse Pulse) next in module.Process(sender, pulse))
+                        {
+                            queue.Enqueue((module.Id, next.Destination, next.Pulse));
+                        }
                     }
                 }
-
-                return false;
             }
         }
 
