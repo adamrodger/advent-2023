@@ -13,58 +13,25 @@ namespace AdventOfCode
         public int Part1(string[] input)
         {
             var cubes = input.Select((line, i) => SandCube.Parse(i, line)).ToArray();
-
-            Dictionary<int, ISet<int>> supporting = new();
-            Dictionary<int, ISet<int>> supportedBy = new();
-            Dictionary<Point3D, int> occupiedSpace = new();
-
-            foreach (SandCube cube in cubes.OrderBy(c => c.BottomLeftFront.Z))
-            {
-                SandCube current = cube;
-                SandCube dropped = cube.Drop();
-
-                // drop until we hit either the ground or a point occupied by another cube
-                while (dropped.Points().All(p => p.Z > 0 && !occupiedSpace.ContainsKey(p)))
-                {
-                    current = dropped;
-                    dropped = current.Drop();
-                }
-
-                // mark the cubes below as supporting this one
-                foreach (Point3D point in dropped.BottomLayer().Where(occupiedSpace.ContainsKey))
-                {
-                    int supportingId = occupiedSpace[point];
-                    supporting.GetOrCreate(supportingId, () => new HashSet<int>()).Add(current.Id);
-                    supportedBy.GetOrCreate(current.Id, () => new HashSet<int>()).Add(supportingId);
-                }
-
-                // settle this cube in place
-                foreach (Point3D point in current.Points())
-                {
-                    occupiedSpace[point] = current.Id;
-                }
-            }
+            var tower = SandCubeTower.Build(cubes);
 
             int total = 0;
 
             foreach (SandCube cube in cubes)
             {
-                if (!supporting.TryGetValue(cube.Id, out ISet<int> holdingUp))
+                if (!tower.Supporting.TryGetValue(cube.Id, out ISet<int> holdingUp))
                 {
                     // cube doesn't support anything, safe to remove
                     total++;
                     continue;
                 }
 
-                if (holdingUp.All(h => supportedBy[h].Count > 1))
+                if (holdingUp.All(h => tower.SupportedBy[h].Count > 1))
                 {
                     // we're supporting things, but everything we're supporting is itself supported by at least one other thing
                     total++;
                 }
             }
-
-            // 1216 -- too high
-            // 1210 -- too high
 
             return total;
         }
@@ -72,37 +39,7 @@ namespace AdventOfCode
         public int Part2(string[] input)
         {
             var cubes = input.Select((line, i) => SandCube.Parse(i, line)).ToArray();
-
-            Dictionary<int, ISet<int>> supporting = new();
-            Dictionary<int, ISet<int>> supportedBy = new();
-            Dictionary<Point3D, int> occupiedSpace = new();
-
-            foreach (SandCube cube in cubes.OrderBy(c => c.BottomLeftFront.Z))
-            {
-                SandCube current = cube;
-                SandCube dropped = cube.Drop();
-
-                // drop until we hit either the ground or a point occupied by another cube
-                while (dropped.Points().All(p => p.Z > 0 && !occupiedSpace.ContainsKey(p)))
-                {
-                    current = dropped;
-                    dropped = current.Drop();
-                }
-
-                // mark the cubes below as supporting this one
-                foreach (Point3D point in dropped.BottomLayer().Where(occupiedSpace.ContainsKey))
-                {
-                    int supportingId = occupiedSpace[point];
-                    supporting.GetOrCreate(supportingId, () => new HashSet<int>()).Add(current.Id);
-                    supportedBy.GetOrCreate(current.Id, () => new HashSet<int>()).Add(supportingId);
-                }
-
-                // settle this cube in place
-                foreach (Point3D point in current.Points())
-                {
-                    occupiedSpace[point] = current.Id;
-                }
-            }
+            var tower = SandCubeTower.Build(cubes);
 
             int total = 0;
 
@@ -117,7 +54,7 @@ namespace AdventOfCode
                 {
                     int id = queue.Dequeue();
 
-                    if (!supporting.TryGetValue(id, out ISet<int> holdingUp))
+                    if (!tower.Supporting.TryGetValue(id, out ISet<int> holdingUp))
                     {
                         // not holding anything up, so nothing to fall
                         continue;
@@ -125,7 +62,7 @@ namespace AdventOfCode
 
                     foreach (int heldUp in holdingUp)
                     {
-                        if (supportedBy[heldUp].All(fell.Contains))
+                        if (tower.SupportedBy[heldUp].All(fell.Contains))
                         {
                             // everything supporting this one fell down
                             queue.Enqueue(heldUp);
@@ -134,16 +71,75 @@ namespace AdventOfCode
                     }
                 }
 
-                total += fell.Count - 1;
+                total += fell.Count - 1; // don't count the block that we removed
             }
-
-            // 12581 -- too low
 
             return total;
         }
 
+        /// <summary>
+        /// Tower of sand cubes
+        /// </summary>
+        /// <param name="Supporting">Lookup of each sand cube to which other sand cubes it is supporting</param>
+        /// <param name="SupportedBy">Lookup of each sand cube to which other sand cubes it is supported by</param>
+        private record SandCubeTower(IDictionary<int, ISet<int>> Supporting, IDictionary<int, ISet<int>> SupportedBy)
+        {
+            /// <summary>
+            /// Building the tower from the given starting cube positions representing falling cubes
+            /// </summary>
+            /// <param name="falling">Falling cubes</param>
+            /// <returns>Sand cube tower after all cubes have fallen and settled</returns>
+            public static SandCubeTower Build(IEnumerable<SandCube> falling)
+            {
+                Dictionary<int, ISet<int>> supporting = new();
+                Dictionary<int, ISet<int>> supportedBy = new();
+                Dictionary<Point3D, int> occupiedSpace = new();
+
+                foreach (SandCube cube in falling.OrderBy(c => c.BottomLeftFront.Z))
+                {
+                    SandCube current = cube;
+                    SandCube dropped = cube.Drop();
+
+                    // drop until we hit either the ground or a point occupied by another cube
+                    while (dropped.BottomLayer().All(p => p.Z > 0 && !occupiedSpace.ContainsKey(p)))
+                    {
+                        current = dropped;
+                        dropped = current.Drop();
+                    }
+
+                    // mark the cubes below as supporting this one
+                    foreach (Point3D point in dropped.BottomLayer().Where(occupiedSpace.ContainsKey))
+                    {
+                        int supportingId = occupiedSpace[point];
+                        supporting.GetOrCreate(supportingId, () => new HashSet<int>()).Add(current.Id);
+                        supportedBy.GetOrCreate(current.Id, () => new HashSet<int>()).Add(supportingId);
+                    }
+
+                    // settle this cube in place
+                    foreach (Point3D point in current.Points())
+                    {
+                        occupiedSpace[point] = current.Id;
+                    }
+                }
+
+                return new SandCubeTower(supporting, supportedBy);
+            }
+        }
+
+        /// <summary>
+        /// A cube of sand
+        /// </summary>
+        /// <param name="Id">Cube ID</param>
+        /// <param name="BottomLeftFront">The bottom front left corner</param>
+        /// <param name="TopRightBack">The top right back corner</param>
         private record SandCube(int Id, Point3D BottomLeftFront, Point3D TopRightBack)
         {
+            /// <summary>
+            /// Parse a sand cube from input
+            /// </summary>
+            /// <param name="id">Cube ID</param>
+            /// <param name="input">Input line</param>
+            /// <returns>Sand cube</returns>
             public static SandCube Parse(int id, string input)
             {
                 int[] numbers = input.Numbers<int>();
@@ -159,17 +155,10 @@ namespace AdventOfCode
                 return new SandCube(id, bottomLeftFront, topRightBack);
             }
 
-            public bool Overlaps(SandCube other)
-            {
-                bool overlapX = !(this.BottomLeftFront.X > other.TopRightBack.X
-                               || this.TopRightBack.X < other.BottomLeftFront.X);
-
-                bool overlapY = !(this.BottomLeftFront.Y > other.TopRightBack.Y
-                               || this.TopRightBack.Y < other.BottomLeftFront.Y);
-
-                return overlapX && overlapY;
-            }
-
+            /// <summary>
+            /// Drop the current cube by one place
+            /// </summary>
+            /// <returns>Same cube but space one lower down</returns>
             public SandCube Drop()
             {
                 return this with
@@ -179,6 +168,10 @@ namespace AdventOfCode
                 };
             }
 
+            /// <summary>
+            /// Enumerate all the points of space taken up by this cube
+            /// </summary>
+            /// <returns>Cube points</returns>
             public IEnumerable<Point3D> Points()
             {
                 for (int x = this.BottomLeftFront.X; x <= this.TopRightBack.X; x++)
@@ -193,6 +186,10 @@ namespace AdventOfCode
                 }
             }
 
+            /// <summary>
+            /// Enumerate all the points of space taken up by the bottom layer of this cube
+            /// </summary>
+            /// <returns>Bottom layer</returns>
             public IEnumerable<Point3D> BottomLayer()
             {
                 for (int x = this.BottomLeftFront.X; x <= this.TopRightBack.X; x++)
