@@ -12,35 +12,36 @@ namespace AdventOfCode
     {
         public int Part1(string[] input)
         {
-            var cubes = input.Select(SandCube.Parse).ToArray();
+            var cubes = input.Select((line, i) => SandCube.Parse(i, line)).ToArray();
 
-            Dictionary<SandCube, IList<SandCube>> supporting = new();
-            Dictionary<SandCube, IList<SandCube>> supportedBy = new();
+            Dictionary<int, ISet<int>> supporting = new();
+            Dictionary<int, ISet<int>> supportedBy = new();
+            Dictionary<Point3D, int> occupiedSpace = new();
 
-            for (int i = 0; i < cubes.Length - 1; i++)
+            foreach (SandCube cube in cubes.OrderBy(c => c.BottomLeftFront.Z))
             {
-                for (int j = i + 1; j < cubes.Length; j++)
+                SandCube current = cube;
+                SandCube dropped = cube.Drop();
+
+                // drop until we hit either the ground or a point occupied by another cube
+                while (dropped.Points().All(p => p.Z > 0 && !occupiedSpace.ContainsKey(p)))
                 {
-                    var a = cubes[i];
-                    var b = cubes[j];
+                    current = dropped;
+                    dropped = current.Drop();
+                }
 
-                    if (!a.Overlaps(b))
-                    {
-                        continue;
-                    }
+                // mark the cubes below as supporting this one
+                foreach (Point3D point in dropped.BottomLayer().Where(occupiedSpace.ContainsKey))
+                {
+                    int supportingId = occupiedSpace[point];
+                    supporting.GetOrCreate(supportingId, () => new HashSet<int>()).Add(current.Id);
+                    supportedBy.GetOrCreate(current.Id, () => new HashSet<int>()).Add(supportingId);
+                }
 
-                    if (a.TopRightBack.Z < b.BottomLeftFront.Z)
-                    {
-                        // A supports B
-                        supporting.GetOrCreate(a, () => new List<SandCube>()).Add(b);
-                        supportedBy.GetOrCreate(b, () => new List<SandCube>()).Add(a);
-                    }
-                    else
-                    {
-                        // B supports A
-                        supporting.GetOrCreate(b, () => new List<SandCube>()).Add(a);
-                        supportedBy.GetOrCreate(a, () => new List<SandCube>()).Add(b);
-                    }
+                // settle this cube in place
+                foreach (Point3D point in current.Points())
+                {
+                    occupiedSpace[point] = current.Id;
                 }
             }
 
@@ -48,14 +49,14 @@ namespace AdventOfCode
 
             foreach (SandCube cube in cubes)
             {
-                if (!supporting.TryGetValue(cube, out IList<SandCube> holdingUp))
+                if (!supporting.TryGetValue(cube.Id, out ISet<int> holdingUp))
                 {
                     // cube doesn't support anything, safe to remove
                     total++;
                     continue;
                 }
 
-                if (holdingUp.All(h => supportedBy.ContainsKey(h) && supportedBy[h].Count > 1))
+                if (holdingUp.All(h => supportedBy[h].Count > 1))
                 {
                     // we're supporting things, but everything we're supporting is itself supported by at least one other thing
                     total++;
@@ -78,12 +79,9 @@ namespace AdventOfCode
             return 0;
         }
 
-        private record SandCube
+        private record SandCube(int Id, Point3D BottomLeftFront, Point3D TopRightBack)
         {
-            public Point3D BottomLeftFront { get; init; }
-            public Point3D TopRightBack { get; init; }
-
-            public static SandCube Parse(string input)
+            public static SandCube Parse(int id, string input)
             {
                 int[] numbers = input.Numbers<int>();
 
@@ -95,7 +93,7 @@ namespace AdventOfCode
                                         Math.Max(numbers[1], numbers[4]),
                                         Math.Max(numbers[2], numbers[5]));
 
-                return new SandCube { BottomLeftFront = bottomLeftFront, TopRightBack = topRightBack };
+                return new SandCube(id, bottomLeftFront, topRightBack);
             }
 
             public bool Overlaps(SandCube other)
@@ -107,6 +105,40 @@ namespace AdventOfCode
                                || this.TopRightBack.Y < other.BottomLeftFront.Y);
 
                 return overlapX && overlapY;
+            }
+
+            public SandCube Drop()
+            {
+                return this with
+                {
+                    BottomLeftFront = this.BottomLeftFront - (0, 0, 1),
+                    TopRightBack = this.TopRightBack - (0, 0, 1)
+                };
+            }
+
+            public IEnumerable<Point3D> Points()
+            {
+                for (int x = this.BottomLeftFront.X; x <= this.TopRightBack.X; x++)
+                {
+                    for (int y = this.BottomLeftFront.Y; y <= this.TopRightBack.Y; y++)
+                    {
+                        for (int z = this.BottomLeftFront.Z; z <= this.TopRightBack.Z; z++)
+                        {
+                            yield return (x, y, z);
+                        }
+                    }
+                }
+            }
+
+            public IEnumerable<Point3D> BottomLayer()
+            {
+                for (int x = this.BottomLeftFront.X; x <= this.TopRightBack.X; x++)
+                {
+                    for (int y = this.BottomLeftFront.Y; y <= this.TopRightBack.Y; y++)
+                    {
+                        yield return (x, y, this.BottomLeftFront.Z);
+                    }
+                }
             }
         }
     }
