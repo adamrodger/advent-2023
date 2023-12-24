@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using AdventOfCode.Utilities;
-using MoreLinq;
 using Optional;
 
 namespace AdventOfCode
