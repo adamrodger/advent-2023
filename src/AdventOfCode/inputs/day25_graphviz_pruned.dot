@@ -1,4 +1,9 @@
 graph G {
+    # removed edges
+    #   mfc -- vph
+    #   vmt -- sfm
+    #   rmg -- fql
+
     hgm -- {krj psx xsl bpt}
     pgz -- {mhs rsb mvk jjz}
     ckf -- {nmv mvc}
@@ -892,7 +897,7 @@ graph G {
     zzt -- {phs mcv bcl lnx}
     sdq -- {nzm fvz dpr}
     stp -- {pck nmf vlf ncq}
-    vph -- {mfc fqz zcf}
+    vph -- {fqz zcf}
     txs -- {bgd snl rkl}
     gqb -- {fth dtp}
     qpt -- {tdm}
@@ -925,7 +930,7 @@ graph G {
     fjs -- {rzp gbr mvz bcx jnh}
     mhv -- {ccv smc bxr ghg gdp hnd}
     rhc -- {gfb}
-    sfm -- {tgv vmt zhd}
+    sfm -- {tgv zhd}
     vpm -- {nnb}
     fqp -- {lbg glq gds zzk}
     tns -- {rkl czq mvk mrk kqr}
@@ -936,7 +941,7 @@ graph G {
     kng -- {llr bdh zrh dkr}
     vbq -- {cft qcc}
     lmm -- {bvb nmv}
-    rmg -- {xvt rfn ngc rxv fql}
+    rmg -- {xvt rfn ngc rxv}
     srh -- {dqg tcl bzh}
     jtq -- {bxc qlx}
     lqk -- {tbs}
